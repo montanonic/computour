@@ -50,13 +50,41 @@ impl MyAllocator {
 
     /// Allows access to the buffer, disabling custom allocation for the
     /// duration.
-    pub fn view_buf(&self, f: impl FnOnce((&[u8], &[usize]))) {
-        let last_power = self.is_on();
+    pub fn view_buf(&self, f: fn((&[u8], &[usize]))) {
         unsafe {
-            self.power(false);
-            f(self.inner.get_buf());
-            self.power(last_power);
+            self.use_global_with_closure(|| {
+                f(self.inner.get_buf());
+            })
         }
+    }
+
+    /// Run code without using the custom allocator. To ensure safety, we only
+    /// allow references to types to be passed, so that we can avoid any
+    /// allocating behavior, and thus don't accept closures (which could allow
+    /// for moved values). You must be very careful to ensure that no code which
+    /// has any allocation effect on &Args is ran; this means that possibly even
+    /// standard library code could cause UB here if it allows for the
+    /// possibility of allocation through an & reference.
+    ///
+    /// For this reason, even though there's already some built-in safety here,
+    /// we cannot guarantee that this function is safe to call on arbitrary safe
+    /// code.
+    pub unsafe fn use_global<Args>(&self, args: &Args, f: fn(&Args)) {
+        unsafe {
+            self.use_global_with_closure(|| {
+                f(args);
+            })
+        }
+    }
+
+    /// Care has to be taken to ensure no custom allocated values get moved into
+    /// the closure, otherwise the default allocator will deallocate them, which
+    /// is UB.
+    unsafe fn use_global_with_closure(&self, f: impl Fn()) {
+        let last_power = self.is_on();
+        self.power(false);
+        f();
+        self.power(last_power);
     }
 }
 
@@ -78,6 +106,10 @@ impl ArrAllocator {
         }
     }
 
+    /// Unsafe because this allows slices to be read while they also might be
+    /// mutably aliased by the allocator. Only safe to read when no custom
+    /// allocation is happening, and refs must be dropped before the next custom
+    /// allocation happens.
     unsafe fn get_buf(&self) -> (&[u8], &[usize]) {
         (&self.arr, &self.layouts)
     }

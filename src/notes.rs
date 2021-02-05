@@ -49,3 +49,28 @@ within allocation code, but I guess that makes it a fun challenge!
 
 Implement a virtual stack as well!
 */
+
+/* Apparently this does no allocation:
+let init_jobs: Box<[UnsafeRay; RAYPOOL_SIZE]> =
+  std::iter::repeat_with(UnsafeRay::default)
+    .take(RAYPOOL_SIZE)
+    .collect::<Vec<_>>()
+    .into_boxed_slice()
+    .try_into()
+    .unwrap()
+
+a boxed slice can never be pushed/popped
+also, a Vec that you never push/pop to won't reallocate :slight_smile:
+And seri's usage of collect will only perform one allocation
+since the length of the iterator is known
+
+yup, no reallocs, single alloc + no unsafe here
+
+pedantically, this still allocates one struct on the stack and then copies it to memory
+which is theoretically not required
+but it's probably fine, considering this is probably setup code
+
+esp. since the only problem was "my stack was too big"
+
+https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=b83ecfcf45eb941749a4ea44a92f6ca8
+*/
