@@ -4,45 +4,67 @@
 
 mod alloc;
 mod bytes;
+mod nomicon;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
-use std::{alloc::Layout, cell::RefCell, default::Default, sync::Mutex};
+use ptr::write;
+use std::{
+    alloc::Layout, borrow::Borrow, cell::RefCell, default::Default, mem, ops::Deref, ptr,
+    sync::Mutex,
+};
 
 #[global_allocator]
 static ALLOCATOR: alloc::MyAllocator = alloc::MyAllocator::new();
 
 // static LAYOUTS: Lazy<Mutex<Vec<Layout>>> = Lazy::new(|| Mutex::new(Vec::with_capacity(1024)));
 
+const RUN_NOMICON: bool = true;
+
 fn main() {
-    ALLOCATOR.power(true);
-    let mut v1: Vec<u8> = vec![1, 2, 3, 4];
-    let mut v2: Vec<u8> = vec![5, 6, 7, 8, 9, 10, 11, 12];
+    if RUN_NOMICON {
+        return nomicon::main();
+    }
 
-    v1.push(252);
-    v1.push(252);
-    let x = v1[0].to_string();
-    let sx = String::from('1');
-    let x = v1[3].to_string();
-    let sx = String::from('4');
-    let x = v1[4].to_string();
-    let sx = String::from(252u8.to_string());
-    // let x = v1[0];
-    // v2.push(99);
-    // println!("{:?}", v3);
-    // println!("{:?}", v1);
-    // println!("{:?}", v2);
+    unsafe {
+        ALLOCATOR.power(true);
+    }
 
-    // let v = vec![100, 200, 300, 400];
+    #[derive(Clone, Debug)]
+    struct Test {
+        u32: u32,
+        u8: u8,
+        u16: u16,
+    }
+
+    let t = Test {
+        u32: 32,
+        u8: 8,
+        u16: 16,
+    };
+
+    let mut v1: Vec<Test> = vec![t.clone(), t];
+
+    let mut v2: Vec<&Test> = Vec::with_capacity(1);
+
+    v2.push(&v1[0]);
+
+    let mut v4: Vec<&[Test]> = Vec::with_capacity(1);
+
+    v4.push(&v1[..]);
+
+    // v1.as_ptr()
+
+    // let mut v2 = vec![1u8; 1];
+
     ALLOCATOR.view_buf(|buf| {
         println!("{:?}", buf.0);
         println!("{:?}", buf.1);
     });
+
     unsafe {
-        ALLOCATOR.use_global(&sx, |sx| {
-            println!("{:?}", b"252");
-            println!("{:?}", sx);
-            println!("{:?}", Bytes::from_str(sx));
+        ALLOCATOR.use_global(&(v4), |(v)| {
+            let _ = println!("{:?}", v[0][0]);
         });
     }
 }

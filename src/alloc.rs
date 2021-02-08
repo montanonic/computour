@@ -1,11 +1,15 @@
 use std::{
     alloc::{self, GlobalAlloc, Layout, System},
+    array,
+    borrow::BorrowMut,
     cell::{Cell, RefCell},
     error::Error,
-    mem, panic,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    mem, panic, ptr,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Mutex,
+    },
 };
-use std::{borrow::BorrowMut, ptr};
 
 pub struct MyAllocator {
     on: AtomicBool,
@@ -20,7 +24,14 @@ impl MyAllocator {
         }
     }
 
-    pub fn power(&self, on: bool) {
+    /// Unsafe because you must ensure that all values allocated by one
+    /// allocator are dropped by that same allocator, and also that every
+    /// distinct type is entirely handled by one allocator.
+    ///
+    /// So, basically, you need to very clearly delimit boundaries between
+    /// custom and default allocation, and *not* mix without careful
+    /// consideration of possible allocations that could happen and lead to UB.
+    pub unsafe fn power(&self, on: bool) {
         self.on.store(on, Ordering::SeqCst)
     }
 
@@ -28,28 +39,29 @@ impl MyAllocator {
         self.on.load(Ordering::SeqCst)
     }
 
-    fn alloc(&self, layout: Layout) -> *mut u8 {
-        self.inner.alloc(layout)
+    /// Get the internal allocator.
+    unsafe fn get_alloc(&self) -> &ArrAllocator {
+        &self.inner
     }
 
-    fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.inner.dealloc(ptr, layout)
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if self.is_on() {
+            self.inner.alloc(layout)
+        } else {
+            System.alloc(layout)
+        }
     }
 
-    pub fn print_buf(&self) {
-        unsafe {
-            let msg = "Here's the buffer!\n";
-            libc::write(libc::STDOUT_FILENO, msg.as_ptr() as _, msg.len() as _);
-            libc::write(
-                libc::STDOUT_FILENO,
-                self.inner.arr.as_ptr() as _,
-                self.inner.arr.len() as _,
-            );
-        };
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        if self.is_on() {
+            self.inner.dealloc(ptr, layout)
+        } else {
+            System.dealloc(ptr, layout)
+        }
     }
 
-    /// Allows access to the buffer, disabling custom allocation for the
-    /// duration.
+    /// Allows access to the buffer, and layout request buffer, disabling custom
+    /// allocation for the duration.
     pub fn view_buf(&self, f: fn((&[u8], &[usize]))) {
         unsafe {
             self.use_global_with_closure(|| {
@@ -88,6 +100,27 @@ impl MyAllocator {
     }
 }
 
+// /// Low level interface to tracking layout requests made by an allocator.
+// struct LayoutTracker {
+//     arr: Mutex<*mut [u8]>,
+//     ptr: AtomicUsize,
+//     len: AtomicUsize,
+// }
+
+// impl LayoutTracker {
+//     pub fn new() -> Self {
+//         const LEN: usize = 100; // Default to 100 size.
+//         let arr = [0u8; 100];
+//         let x = arr.as_mut_ptr();
+//         let arr = Mutex::new(arr.as_mut_ptr());
+//         Self {
+//             arr,
+//             ptr: AtomicUsize::new(0),
+//             len: AtomicUsize::new(LEN),
+//         }
+//     }
+// }
+
 struct ArrAllocator {
     /// Points to the next valid spot to write to.
     write_ptr: AtomicUsize,
@@ -114,6 +147,10 @@ impl ArrAllocator {
         (&self.arr, &self.layouts)
     }
 
+    /// The interesting thing about alloc is that we never actually write the
+    /// structure ourself, instead we just *prepare* for allocation, and then
+    /// give Rust a pointer to a location where it has the appropriate amount of
+    /// space to allocate within.
     fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
@@ -126,38 +163,67 @@ impl ArrAllocator {
         }
         self.write_ptr.store(new_ptr, Ordering::SeqCst);
 
-        self.note_layout(layout);
+        self.note_layout(layout, false);
 
         &self.arr[old_ptr] as *const _ as *mut _
     }
 
-    fn note_layout(&self, layout: Layout) {
+    fn note_layout(&self, layout: Layout, is_dealloc: bool) {
         let mut ptr = self.layout_ptr.load(Ordering::SeqCst);
         let arr = &self.layouts as *const _ as *mut [usize; 100];
         unsafe {
             (*arr)[ptr] = layout.size();
             (*arr)[ptr + 1] = layout.align();
+            if is_dealloc {
+                (*arr)[ptr + 2] = 99;
+            }
         }
         self.layout_ptr.store(ptr + 4, Ordering::SeqCst);
     }
 
     /// Currently don't actually deallocate.
-    fn dealloc(&self, ptr: *mut u8, layout: Layout) {}
+    fn dealloc(&self, mut ptr: *mut u8, layout: Layout) {
+        unsafe {
+            let mut n = 0;
+            let size = layout.size();
+            // Zero out the deallocation.
+            while n < size {
+                *ptr = 0;
+                ptr = ptr.offset(1);
+                n += 1;
+            }
+        }
+        self.note_layout(layout, true);
+    }
+
+    fn log_layout_req(layout: Layout) {
+        unsafe {
+            // let align_ref = &layout.align() as *const usize;
+            // libc::write(
+            //     libc::STDOUT_FILENO,
+            //     align_ref as _,
+            //     mem::size_of::<usize>() as _,
+            // );
+            // libc::write(
+            //     libc::STDOUT_FILENO,
+            //     align_ref as _,
+            //     mem::size_of::<usize>() as _,
+            // );
+            // let msg
+            // libc::write(
+            //     libc::STDOUT_FILENO,
+            //     align_ref as _,
+            //     mem::size_of::<usize>() as _,
+            // );
+        };
+    }
 }
 
 unsafe impl GlobalAlloc for MyAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if self.is_on() {
-            self.alloc(layout)
-        } else {
-            System.alloc(layout)
-        }
+        self.alloc(layout)
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        if self.is_on() {
-            self.dealloc(ptr, layout)
-        } else {
-            System.dealloc(ptr, layout)
-        }
+        self.dealloc(ptr, layout)
     }
 }

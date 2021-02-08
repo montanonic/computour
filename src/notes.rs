@@ -74,3 +74,52 @@ esp. since the only problem was "my stack was too big"
 
 https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=b83ecfcf45eb941749a4ea44a92f6ca8
 */
+
+/*
+This wouldn't be the most useful, but perhaps as a fun way to explore reference/pointer invalidation,
+we can create a vector that loans out a special reference pointer struct that is tracked by the vector
+itself (so it's bound to the Vector's lifetime, as it must obviously be), and anytime the vector
+reallocates/resizes, it will iterate through and flag all of these references so that they know
+they are (almost certainly) invalid.
+
+We do this lazily so that we don't manually update each reference earlier than needed.
+
+Then, when a reference is used, if that flag is up, it will under the hood do a lookup to that
+location in the new vector, possibly failing if the vector has, for example, decreased in size.
+
+If I created a game-situation that actually made use of this quite artificial structure, it'd
+certainly be a fun way to test out some nicher skills and demonstrate a deeper understanding of
+why we very carefully don't allow references to be alive when a vector is mutated.
+
+But, of course, we *can* use these skills to build a less restrictive vector that doesn't require
+the user to drop references, but instead makes each of those references no longer have a guaranteed
+lookup.
+*/
+
+/*
+One thing I want to be *sure* to do is to illustrate a meaningful example of a race condition in a
+single-threaded context. I want to make absolutely clear how an aliased mutable reference is harmful
+even in this type of context.
+
+It's obvious to imagine a simultaneous read-write failing in a concurrent context, but it's a lot
+harder to see this in a single-threaded case where you might imagine "well doesn't that mutable thing
+finish before the read happens no matter what?".
+
+And personally, I don't know! That's why I feel this is important to understand, and important to
+illustrate through a virtual CPU to concretize the problem. Obviously a "mutation" is usually
+multiple CPU instructions, and so if there was a read that happened in-between you could easily
+get clobbered state and thus UB. But to my understanding the Rust compiler wouldn't ever have
+those things interleave... right?
+
+Here's some answers: iterator invalidation: make an iterator, push/pop on the original data structure,
+your iterator is now invalid unless it knows to alter itself when the data it's referencing changes
+(which also means that by-default you'd have broken behavior in a way that is not possible in Safe Rust
+due to disallowing mutation when there's any concurrent borrow (concurrent not implying multi-threaded
+or parallel in this case)).
+
+By extension, anything that has a state-dependency which can't be captured in a single step is a
+possibility of a data race. Rust has semantics that guarantee data-race UB will never happen, and
+these same semantics help make it *much* easier to guarantee that data-race logic failures will
+never happen, because every mutation is, of course, exclusive by default, *no matter what*, without
+manually adding special types that allow you to change this in specific ways, or going into unsafe Rust.
+*/
