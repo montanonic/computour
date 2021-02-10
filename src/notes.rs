@@ -235,3 +235,52 @@ And for higher performance, more complex VM implementations could be used.
 
 Things to explore here: Just in Time Compilation, and other tricks of the trade!
 */
+
+/*
+The robots want to build a new internet, so later stage tasks could be implementing simpler
+versions of UDP/TCP/HTTP? Let's learn more about how network traffic propegates and so on.
+
+But! Also this could be version 2 of the game, you know? Like let's focus on CPU and OS stuff
+here to keep our focus more in alignment. I'd rather explore Programming Languages in more
+depth than network stuff IMO, at least right now. On the OS side though network stuff does
+make more sense to look into because of security implications and so on. But also that doesn't
+necessarily require diving into the protocols to look at. Worth keeping in mind.
+*/
+
+/*
+LC-3 idea. Okay so in our story let's say some actualy LC-3 CPUs were created, but there aren't
+many, and the robots don't know of any programs written for them. So it will be our job to implement
+them and get them talking to each other.
+
+What's nice about LC-3 is that it gives us a super reduced instruction set. LC-4 would basically be:
+what's the minimal amount of additions we can make to dive even deeper into the nuances of modern
+CPUs?
+*/
+
+/*
+As mentioned to Dee in our conversation, by expecting the player to provide us Interfaces to their
+designs, we would open up much more room in our game to offer different areas of interest for learners
+to go down without needing to overly commit to anything. I do think though that it's easiest to build
+a compelling narrative linearly, so maybe I should start there and circle back to this as I have more
+ideas fleshed out, and figure out how I can give the learner a lot of freedom and openness, and
+facilitate their own learning of the things they're more interested in. Ideally a learner is curious
+to explore 60-80% of our problems, and I don't think the game should demand that they go through
+everything to get to the "end" (a final challenge that pulls together everything). They just need
+to do enough, and hit the major concepts.
+
+I feel like now I'm overthinking the high-level of this and need to get back into the nitty gritty of
+working things out.
+*/
+
+/*
+I want there to be an engineering hub in the game where the player can benchmark and test out their
+virtual machines. One fun thing we can even do there is have the player write a program in a higher
+level language and compile it down to all the different architectures, and then we benchmark the
+performance of the different VMs they've made against each other.
+
+How to benchmark? Program to an interface. Have an API that makes it easy for us to count every
+instruction a VM performs. Then we use that interface to call it and track it through that. I'd
+want to put a little effort to make sure it's not *obviously* exploitable, but I don't care about
+people who want to hack it; I just don't want giving crap results to be so readily apparent that
+people devalue the meaningfulness of the testing.
+*/
