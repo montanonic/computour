@@ -3,11 +3,13 @@
 #![allow(unused)]
 
 mod alloc;
+mod bits;
 mod bytes;
+mod lc3;
 mod nomicon;
+mod vm;
 
 use bytes::Bytes;
-use once_cell::sync::Lazy;
 use ptr::write;
 use std::{
     alloc::Layout, borrow::Borrow, cell::RefCell, default::Default, mem, ops::Deref, ptr,
@@ -17,13 +19,28 @@ use std::{
 #[global_allocator]
 static ALLOCATOR: alloc::MyAllocator = alloc::MyAllocator::new();
 
-// static LAYOUTS: Lazy<Mutex<Vec<Layout>>> = Lazy::new(|| Mutex::new(Vec::with_capacity(1024)));
+enum Run {
+    Nomicon,
+    LC3,
+    VM,
+    Default,
+}
+use Run::*;
 
-const RUN_NOMICON: bool = true;
+const RUN: Run = VM;
 
 fn main() {
-    if RUN_NOMICON {
-        return nomicon::main();
+    match RUN {
+        Nomicon => {
+            return nomicon::main();
+        }
+        LC3 => {
+            return lc3::main();
+        }
+        VM => {
+            return vm::main();
+        }
+        Default => {}
     }
 
     unsafe {

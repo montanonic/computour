@@ -123,3 +123,41 @@ these same semantics help make it *much* easier to guarantee that data-race logi
 never happen, because every mutation is, of course, exclusive by default, *no matter what*, without
 manually adding special types that allow you to change this in specific ways, or going into unsafe Rust.
 */
+
+/*
+Idea: have the user write a VM for a CPU. It will have its own instruction set and such.
+The user is then going to fix a bug in an existing CPU. To do this, they'll need to feed it binary
+opcodes, checking the state each time, and comparing with their own VM, to find discrepancies.
+
+I also love the idea of us building a VM creator, to quickly debug novel processors. Then again,
+a CPU bug should be hardware related, not software... So, to debug other VM's? Meh, I'm not sure
+yet what the most fleshed out idea would be.
+
+OH! What if the program were supposedly doing something dangerous in our game, so we wanted to test
+it out in a low-stakes situation before running it for real. That could be fun, and conceptually
+justify us doing things this way.
+*/
+
+/*
+Question: How does computer startup initialize the memory space properly for the processor?
+
+Does the processor need to run some initialization routine to set up the RAM properly?
+
+Is there a way to use a processor that can only handle smaller register sizes with a larger
+hardware RAM size than the maximum register value? (why can't we just use multiple registers to
+more slowly lookup RAM addresses?)
+*/
+
+/*
+So it looks like processors expect certain areas in RAM to be solely usable by them, and the
+Operating System's job is to manage the address space so that things work as expected. This
+means OS's tend to expose virtual addresses spaces which do not directly map onto the physical
+address space; in this way, resources that shouldn't be touched by userland can be kept that way.
+*/
+
+/*
+CPU nuances to look into:
+
+Speculative execution (this is how SPECTRE/MELTDOWN happened, would be fun to explain the exploit!)
+Instruction pipelining
+*/
