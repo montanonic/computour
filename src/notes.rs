@@ -161,3 +161,77 @@ CPU nuances to look into:
 Speculative execution (this is how SPECTRE/MELTDOWN happened, would be fun to explain the exploit!)
 Instruction pipelining
 */
+
+/*
+"An even more simplistic processor than our VM might be missing a MUL instruction and require the
+programmer to use ADD and JMP instructions.""
+*/
+
+/*
+Figure out a way to bridge Rust's borrowchk into outputting in our Lispy assembly language.
+What do I mean by this? Well: we want to show how to *really* make a compiler, but without the
+messiness of actually getting LLVM/Assembly to run on your computer (not yet at least).
+So, we create a Lispy assembly lang (because parsing is so easy) that compiles down into our
+VM bytecode. Smalltalk syntax would also be nice.
+
+Anyways, so, I personally don't want to write the Lispy code by hand. Instead, I'd like to
+write my program in Rust, and have it give me the Lispy code as optional output (or just the
+direct bytecode). Both can and will be implemented.
+
+Now, if I have Rust giving me the Lispy code, then that means I can use all of the power of
+Rust's system to do this. Ideally then, I'd love to use Rust to track and manage that we output
+sane assembly code, with proper lifetimes and all that snazzy jazz.
+
+In fact, since it's not intended to be written by hand, perhaps we could even use whitespace
+sensitive syntax. That would be interesting, and make the output a lot cleaner. Perhaps offer
+both versions? One for easy reading, and the other for general portability and easy writing.
+
+Eventually, could we write a high-level, typed Lisp, that we attempt to rewrite full-on Rust code
+in? The idea being that we could use such a language to actually, piece by piece, start to deeply
+understand how Rust itself is implemented, but without wasting any time on parsing nonsense.
+
+It would be absolutely fascinating to try and so some borrowchk stuff in this language. As in try
+to make our sub-language itself not let us write bad programs, haha. Because we don't have to bring
+in the whole ecosystem and complexity of Rust with us, especially as we'd be operating at an even
+lower level than Rust, we'll be free to tweak how Rust actually works (like allow orphan instances).
+
+All in all, it'd be a good way to explore Rust, and a fun way to understand programming languages.
+
+Oh, and our Lisp will not involve lists :). Which reminds me: once we get some beefier theoretical
+CPUs up, we should take a look at why lists are so flipping inefficient.
+*/
+
+/*
+Once we have a register based VM, we could hilariously write a stack-based VM that compiles into
+our register based bytecode. Everything can emulate everything, right? A computer is a computer.
+This stuff goes deep.
+*/
+
+/*
+I think we need at least 3 different CPU instruction sets. Probably two RISC, and one CISC.
+We'll want them to be quite different if possible, and the goal will be: can we come up with
+a higher-level Virtual CPU that makes it easy to compile into all of these architectures?
+
+This essentially starts to get at what LLVM itself is really doing, as we'd be implementing our
+own here, but of course more simplified in scope.
+
+One thing we'd definitely want to do is look at the tradeoffs an intermediate language like this
+makes. Add one more instruction and you'll make compiling to one CPU easier, but perhaps
+make another more difficult as it has no natural representation for a certain command. Understanding
+stuff like this should involve talking to more Rustacians and looking into LLVM stuff.
+*/
+
+/*
+One of the fun things about VMs is that once you're compiling programs into bytecode, all you need
+to run that code is an implementation of the VM. By making a particularly simple VM, which we
+could test by running it itself in more complex CPU emulators to check cache-efficiency and the like,
+and then benchmark comparing those predictions with actual runtime performance (ideally they will
+actually be quite predictive, which would be awesome because then we'd be validating that our
+machine models totally made sense), we'd have something with a potentially very small surface area
+that any language could implement. Then, just by reading a file of bytecode data and running it on
+this VM, we have fully portable code!
+
+And for higher performance, more complex VM implementations could be used.
+
+Things to explore here: Just in Time Compilation, and other tricks of the trade!
+*/

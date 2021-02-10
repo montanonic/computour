@@ -9,8 +9,13 @@ pub enum Opcode {
     /// An absolute jump of the program counter to the value specified in
     /// register.
     JMP,
+    // Forward and backwards relative jumps.
     JMPF,
     JMPB,
+    EQ,
+    /// Jump if Equal: takes one register as an argument, and jumps to the value
+    /// at that register if the equality flag is true.
+    JEQ,
     IGL,
 }
 
@@ -27,6 +32,8 @@ impl From<u8> for Opcode {
             6 => JMP,
             7 => JMPF,
             8 => JMPB,
+            9 => EQ,
+            10 => JEQ,
             _ => IGL,
         }
     }

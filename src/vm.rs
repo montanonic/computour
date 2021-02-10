@@ -6,12 +6,16 @@ pub fn main() {}
 
 #[derive(Debug)]
 pub struct VM {
+    /// Array that simulates having hardware registers.
     registers: [i32; 32],
-    /// Contains the binary code read by the VM.
+    /// Contains the binary code (bytecode) read by the VM.
     program: Vec<u8>,
     /// Program Counter. Tracks which byte is executing.
     pc: usize,
+    /// Contains the remainder of modulo division ops
     remainder: u32,
+    /// Contains the result of the last equality comparison operation
+    equal_flag: bool,
 }
 
 /// Panics on programs that do not halt.
@@ -22,6 +26,7 @@ impl VM {
             program: vec![],
             pc: 0,
             remainder: 0,
+            equal_flag: false,
         }
     }
 
@@ -75,6 +80,21 @@ impl VM {
             }
             Opcode::JMPB => {
                 self.pc -= self.next_byte() as usize;
+            }
+            Opcode::EQ => {
+                // Flag if the values at the bytecode specified registers are equal.
+                self.equal_flag =
+                    self.next_byte_as_register_lookup() == self.next_byte_as_register_lookup();
+                // Move pc out of the last instruction byte so that the next
+                // instruction can be processed.
+                self.next_byte();
+            }
+            Opcode::JEQ => {
+                if self.equal_flag {
+                    self.pc = self.next_byte_as_register_lookup() as usize;
+                } else {
+                    self.pc += 3;
+                }
             }
         }
         true
@@ -182,6 +202,19 @@ mod tests {
         vm.execute_instruction();
         vm.execute_instruction();
         assert_eq!(vm.pc, 0);
+    }
+
+    #[test]
+    fn test_eq_opcode() {
+        let mut vm = VM::new();
+        vm.registers[0] = 10;
+        vm.registers[1] = 10;
+        vm.program = vec![Opcode::EQ as u8, 0, 1, 0, Opcode::EQ as u8, 0, 1, 0];
+        vm.execute_instruction();
+        assert_eq!(vm.equal_flag, true);
+        vm.registers[1] = 20;
+        vm.execute_instruction();
+        assert_eq!(vm.equal_flag, false);
     }
 
     #[test]
