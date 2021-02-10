@@ -4,12 +4,14 @@ use instruction::{Instruction, Opcode};
 
 pub fn main() {}
 
+#[derive(Debug)]
 pub struct VM {
     registers: [i32; 32],
     /// Contains the binary code read by the VM.
     program: Vec<u8>,
     /// Program Counter. Tracks which byte is executing.
     pc: usize,
+    remainder: u32,
 }
 
 /// Panics on programs that do not halt.
@@ -19,6 +21,7 @@ impl VM {
             registers: [0; 32],
             program: vec![],
             pc: 0,
+            remainder: 0,
         }
     }
 
@@ -41,10 +44,58 @@ impl VM {
             Opcode::LOAD => {
                 let register = self.next_byte() as usize;
                 let number = self.next_u16();
-                self.registers[register] = number as i32;
+                self.register_store(register, number);
+            }
+            Opcode::ADD => {
+                let n1 = self.next_byte_as_register_lookup();
+                let n2 = self.next_byte_as_register_lookup();
+                self.next_byte_as_register_store(n1 + n2);
+            }
+            Opcode::SUB => {
+                let n1 = self.next_byte_as_register_lookup();
+                let n2 = self.next_byte_as_register_lookup();
+                self.next_byte_as_register_store(n1 - n2);
+            }
+            Opcode::MUL => {
+                let n1 = self.next_byte_as_register_lookup();
+                let n2 = self.next_byte_as_register_lookup();
+                self.next_byte_as_register_store(n1 * n2);
+            }
+            Opcode::DIV => {
+                let n1 = self.next_byte_as_register_lookup();
+                let n2 = self.next_byte_as_register_lookup();
+                self.next_byte_as_register_store(n1 / n2);
+                self.remainder = (n1 % n2) as u32;
+            }
+            Opcode::JMP => {
+                self.pc = self.next_byte_as_register_lookup() as usize;
+            }
+            Opcode::JMPF => {
+                self.pc += self.next_byte() as usize;
+            }
+            Opcode::JMPB => {
+                self.pc -= self.next_byte() as usize;
             }
         }
         true
+    }
+
+    /// Reads the next byte as a register, and stores the given value at that
+    /// register.
+    fn next_byte_as_register_store(&mut self, val: impl Into<i32>) {
+        let register = self.next_byte();
+        self.register_store(register, val);
+    }
+
+    /// Stores the value at the given register.
+    fn register_store(&mut self, register: impl Into<usize>, val: impl Into<i32>) {
+        self.registers[register.into()] = val.into();
+    }
+
+    /// Reads the next byte as a register, and looks up the value at that
+    /// register.
+    fn next_byte_as_register_lookup(&mut self) -> i32 {
+        self.registers[self.next_byte() as usize]
     }
 
     /// Reads a byte at the current counter, advancing the program counter.
@@ -96,11 +147,41 @@ mod tests {
 
     #[test]
     fn test_opcode_load() {
-        let mut test_vm = VM::new();
-        let test_bytes = vec![200, 0, 0, 0];
-        test_vm.program = test_bytes;
-        test_vm.run();
-        assert_eq!(test_vm.pc, 1);
+        let mut vm = VM::new();
+        vm.program = vec![Opcode::LOAD as u8, 10, 1, 244];
+        vm.execute_instruction();
+        assert_eq!(vm.registers[10], 500);
+    }
+
+    #[test]
+    fn test_opcode_jmp() {
+        let mut vm = VM::new();
+        vm.registers[0] = 99;
+        vm.program = vec![Opcode::JMP as u8, 0, 0, 0];
+        vm.execute_instruction();
+        assert_eq!(vm.pc, 99);
+    }
+
+    #[test]
+    fn test_opcode_jmpf() {
+        let mut vm = VM::new();
+        vm.program = vec![Opcode::JMPF as u8, 10, 0, 0];
+        vm.execute_instruction();
+        assert_eq!(vm.pc, 2 + 10);
+    }
+
+    #[test]
+    fn test_opcode_jmpb() {
+        let mut vm = VM::new();
+        // The 2 moves us up to JMPB, then the 6 moves us back to the start.
+        vm.program = vec![Opcode::JMPF as u8, 2, 0, 0, Opcode::JMPB as u8, 6, 0, 0];
+        vm.execute_instruction();
+        vm.execute_instruction();
+        assert_eq!(vm.pc, 0);
+        // This means we should be able to loop.
+        vm.execute_instruction();
+        vm.execute_instruction();
+        assert_eq!(vm.pc, 0);
     }
 
     #[test]
