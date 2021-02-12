@@ -29,7 +29,7 @@ enum Run {
 }
 use Run::*;
 
-const RUN: Run = Game;
+const RUN: Run = LC3;
 
 fn main() {
     match RUN {

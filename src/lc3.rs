@@ -1,15 +1,10 @@
-#![allow(arithmetic_overflow)]
 //! Credit to https://justinmeiners.github.io/lc3-vm/ for guidance/inspiration.
+
+mod instructions;
 
 use std::mem;
 
-pub fn main() {
-    unsafe {
-        println!("{}", mem::transmute::<u16, i16>(0b1111_1111_1111_1111));
-        // println!("{:016b}", 0b1111111111111111i16);
-        println!("{:016b}", -0b0000_0000_0000_0001i16);
-    }
-}
+pub fn main() {}
 
 type Memory = [u16; u16::MAX as usize];
 
