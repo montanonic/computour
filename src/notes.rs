@@ -158,8 +158,11 @@ address space; in this way, resources that shouldn't be touched by userland can 
 /*
 CPU nuances to look into:
 
-Speculative execution (this is how SPECTRE/MELTDOWN happened, would be fun to explain the exploit!)
-Instruction pipelining
+** Speculative execution (this is how SPECTRE/MELTDOWN happened, would be fun to explain the exploit!)
+** Instruction pipelining
+** Branch prediction (and branch target prediction)
+** Shadow Registers
+** Register Renaming
 */
 
 /*
@@ -283,4 +286,32 @@ instruction a VM performs. Then we use that interface to call it and track it th
 want to put a little effort to make sure it's not *obviously* exploitable, but I don't care about
 people who want to hack it; I just don't want giving crap results to be so readily apparent that
 people devalue the meaningfulness of the testing.
+*/
+
+/*
+CLOCK CYCLES vs INSTRUCTION CYCLE
+
+Okay so once you learn that the instruction cycle has ~5-6 steps in it, you might assume then that
+CPUs execute only 1/5 to 1/6 of their clock speed in actual instructions, since each instruction
+takes multiple cycles to process. This is true in "multi-cycle processors" (although there are
+ways that they can reduce the number of clock cycles in an instruction cycle).
+
+A CISC (complex instruction set computer) might take multiple clock cycles to complete one
+instruction, but part of the reason why is that a single instruction can do what in a RISC
+ISA would span multiple instructions.
+
+And so, as presumed, RISC ISA's try to have each instruction take only a single clock cycle
+to complete. If they're able to do this, they're called single cycle processors.
+*/
+
+/*
+Consequences of CPU designs on how we think about programs.
+
+It's worth considering what types of programs we'd consider to be idiomatic if there were no such
+things as cache misses (which make us want to have locality), or if pointer lookup, even multiple
+dereferencings, were extremely fast. If we didn't have any architectural limits, what type of
+language would we write?
+
+This is of course how we should be thinking about designing (Very) high level programming languages.
+Optimization should happen under the hood of our highest layer.
 */

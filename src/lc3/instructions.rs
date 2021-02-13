@@ -6,7 +6,7 @@ pub type TrapVector = u8;
 pub type Flag = bool;
 pub type Register = usize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     AddReg(Register, Register, Register),
     AddImm(Register, Register, Imm),
