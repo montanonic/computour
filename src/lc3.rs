@@ -6,10 +6,10 @@ use instructions::Instruction;
 use std::mem;
 
 pub fn main() {
-    println!("{}", (((0b101u16 << (16 - 3)) as i16) >> (16 - 3)) as i16);
-    println!("{}", -0b0000_0000_0000_0011i16);
-    println!("{:016b}", -0b0000_0000_0000_0011i16);
-    println!("{}", 0b11111111111111111111111111111111u32 == u32::MAX);
+    println!(
+        "{}",
+        2f64.powi(-2) + 2f64.powi(-3) + 2f64.powi(-5) + 2f64.powi(-6)
+    );
 }
 
 type Memory = [u16; u16::MAX as usize];
@@ -52,14 +52,38 @@ impl LC3 {
     }
 
     pub fn run_once(&mut self) {
+        let Self {
+            mut registers,
+            mut memory,
+            mut ip,
+            ..
+        } = self;
+
         match self.next_instruction() {
-            Instruction::AddReg(s1, s2, d) => {
-                self.registers[d] = self.registers[s1] + self.registers[s2];
+            Instruction::AddReg(dr, sr1, sr2) => {
+                registers[dr] = registers[sr1] + registers[sr2];
             }
-            Instruction::AndImm(s, d, imm) => {
-                self.registers[d] = self.registers[s] + imm;
+            Instruction::AddImm(dr, sr1, imm) => {
+                registers[dr] = registers[sr1] + sign_extend(imm, 5);
             }
-            // Instruction::Ld(d, offset) => {}
+            Instruction::AndReg(dr, sr1, sr2) => {
+                registers[dr] = registers[sr1] & registers[sr2];
+            }
+            Instruction::AndImm(dr, sr1, imm) => {
+                registers[dr] = registers[sr1] & sign_extend(imm, 5);
+            }
+            Instruction::Not(dr, sr1) => {
+                registers[dr] = !registers[sr1];
+            }
+            Instruction::Br(n, z, p, offset9) => {}
+            Instruction::Jmp(base) => {
+                memory[registers[base] as usize];
+            }
+            Instruction::Jsr(offset11) => {}
+            Instruction::Jsrr(base) => {}
+            Instruction::Ld(dr, offset9) => {
+                registers[dr] = memory[ip.wrapping_add(sign_extend(offset9, 9) as usize)]
+            }
             _ => panic!("instruction not handled"),
         }
     }
@@ -74,6 +98,12 @@ impl LC3 {
             }
         }
     }
+}
+
+#[inline]
+fn sign_extend(x: u16, bits: u8) -> u16 {
+    let shift = 16 - bits;
+    (((x << shift) as i16) >> shift) as u16
 }
 
 // /// A builder-style structure that allows us to simply build an LC-3 program in
@@ -96,7 +126,7 @@ mod tests {
     #[test]
     fn add_works() {
         /// add r6 r2 r6
-        let test_program = vec![AddReg(0, 1, 1), AndImm(1, 0, 13)];
+        let test_program = vec![AddReg(1, 0, 1), AddImm(0, 1, 13)];
         let mut lc3 = LC3::new_test(test_program);
         lc3.registers[0] = 15;
         lc3.registers[1] = 5;
