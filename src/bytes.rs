@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    fmt::{self, Formatter, Result, UpperHex},
+    fmt::{self, Formatter, LowerHex, Result, UpperHex},
     ops::Deref,
 };
 /// Newtype wrapper around byte vector. Derefs into Vec, so can be used as
@@ -60,6 +60,24 @@ impl fmt::UpperHex for Bytes {
                 write!(f, "{:#X}", x)?;
             } else {
                 write!(f, "{:X}", x)?;
+            }
+
+            if i != self.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, "]")
+    }
+}
+
+impl fmt::LowerHex for Bytes {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "[");
+        for (i, x) in self.iter().enumerate() {
+            if f.alternate() {
+                write!(f, "{:#x}", x)?;
+            } else {
+                write!(f, "{:x}", x)?;
             }
 
             if i != self.len() - 1 {

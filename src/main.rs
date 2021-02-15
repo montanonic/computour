@@ -6,6 +6,7 @@ mod alloc;
 mod bits;
 mod bytes;
 mod game;
+mod lang;
 mod lc3;
 mod nomicon;
 mod vm;
@@ -25,11 +26,12 @@ enum Run {
     LC3,
     VM,
     Game,
+    Lang,
     Default,
 }
 use Run::*;
 
-const RUN: Run = LC3;
+const RUN: Run = Lang;
 
 fn main() {
     match RUN {
@@ -44,6 +46,9 @@ fn main() {
         }
         Game => {
             return game::main();
+        }
+        Lang => {
+            return lang::main();
         }
         Default => {}
     }
