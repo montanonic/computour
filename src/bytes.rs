@@ -52,59 +52,35 @@ impl Deref for Bytes {
 //     }
 // }
 
-impl fmt::UpperHex for Bytes {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "[");
-        for (i, x) in self.iter().enumerate() {
-            if f.alternate() {
-                write!(f, "{:#X}", x)?;
-            } else {
-                write!(f, "{:X}", x)?;
-            }
+#[macro_use]
+mod format_macro {
+    macro_rules! fmt_impl {
+        ($Self:ident, $format:literal) => {
+            impl fmt::$Self for Bytes {
+                fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+                    write!(f, "[");
+                    for (i, x) in self.iter().enumerate() {
+                        let val = if f.alternate() {
+                            format!(concat!("{:#", $format, "}"), x)
+                        } else {
+                            format!(concat!("{:", $format, "}"), x)
+                        };
+                        f.pad(&val);
 
-            if i != self.len() - 1 {
-                write!(f, ", ")?;
+                        if i != self.len() - 1 {
+                            write!(f, ", ")?;
+                        }
+                    }
+                    write!(f, "]")
+                }
             }
-        }
-        write!(f, "]")
+        };
     }
 }
 
-impl fmt::LowerHex for Bytes {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "[");
-        for (i, x) in self.iter().enumerate() {
-            if f.alternate() {
-                write!(f, "{:#x}", x)?;
-            } else {
-                write!(f, "{:x}", x)?;
-            }
-
-            if i != self.len() - 1 {
-                write!(f, ", ")?;
-            }
-        }
-        write!(f, "]")
-    }
-}
-
-impl fmt::Binary for Bytes {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "[");
-        for (i, x) in self.iter().enumerate() {
-            if f.alternate() {
-                write!(f, "{:#b}", x)?;
-            } else {
-                write!(f, "{:b}", x)?;
-            }
-
-            if i != self.len() - 1 {
-                write!(f, ", ")?;
-            }
-        }
-        write!(f, "]")
-    }
-}
+fmt_impl!(Binary, "b");
+fmt_impl!(LowerHex, "x");
+fmt_impl!(UpperHex, "X");
 
 impl fmt::Debug for Bytes {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {

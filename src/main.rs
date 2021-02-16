@@ -1,4 +1,4 @@
-#![feature(alloc_layout_extra)]
+#![feature(alloc_layout_extra, or_patterns)]
 #![warn(rust_2018_idioms)]
 #![allow(unused)]
 
