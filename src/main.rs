@@ -9,14 +9,9 @@ mod game;
 mod lang;
 mod lc3;
 mod nomicon;
-mod vm;
+mod old;
 
-use bytes::Bytes;
-use ptr::write;
-use std::{
-    alloc::Layout, borrow::Borrow, cell::RefCell, default::Default, mem, ops::Deref, ptr,
-    sync::Mutex,
-};
+use old::vm;
 
 #[global_allocator]
 static ALLOCATOR: alloc::MyAllocator = alloc::MyAllocator::new();
