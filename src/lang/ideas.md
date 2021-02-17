@@ -35,3 +35,15 @@ I think the main takeaway of all of that for me is to acknowledge that there's a
 ## First-class Rust support
 
 Creating a language in Rust should extend use-cases rather than fragment them. In writing a compiled language, I believe compiling to Rust is an important goal. By doing this, we prepare ourselves for working on code output that can provide idiomatic Rust interfaces, irrespective of the design style of our language. This means development within this language not only fully integrates within the Rust ecosystem, but can actually further it in ways the whole ecosystem can benefit from.
+
+## Are language runtimes what constrain interoperability?
+
+I was just thinkng about "integrated" I felt at the idea of thinking about my custom lang compiling to Rust. To me it means that basically any code can run it, and it will be very performant. Way back when when I was thinking about PLs, I was pondering how we can't really have a type of universal semantics that can execute on different platforms, because JavaScript and Python, to pick two, have disagreements about what is true and false. So the individual discrepancies mean our "universal" algorithms won't just work. I think I'd associated that in my brain with runtimes, but clearly a runtime isn't what screws that one up.
+
+Really, more than anything, a runtime just means that FFI will likely be more nuanced and slow. Erlang/Elixir are good examples: your code needs to run ~1ms if it's a NIF, otherwise you need to use ports, which add meaningful overhead to your inter-language communication.
+
+I'm still kinda frustrated that I wasn't taught how to link up programming languages except to use TCP/HTTP. I wish there were better paradigms for language exchange.
+
+# Stray thoughts
+
+In Rust we're allowed to pass &mut self to a function that takes &self, and can pass self to either, but we can't give up ownership to self that way: its containing block/function owns it, not the function that borrows it: ownership will be returned at the end of that function's execution. But what if we want it to get dropped at the end of that function? I was going to suggest function.own(self) calling syntax, to force a & and &mut function to take ownership of self, but honestly, I think that if you really want that, just manually drop the value right after the function, or instantiate the self value within a subblock containing the function call.

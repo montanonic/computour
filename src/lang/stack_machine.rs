@@ -127,7 +127,7 @@ impl<'sm> LangInterpreter<'sm> {
     /// This could be made pure, but not gonna.
     fn interpret_line(&mut self) {
         let mut args = self.input.split_whitespace();
-        let sm = self.sm;
+        let sm = &mut self.sm;
         let format = &mut self.format;
 
         // if let Some(first) = args.next() {
