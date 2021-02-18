@@ -8,7 +8,7 @@ Consider a calculator programming language that only supported a *single* additi
 ```
 3*4
 ```
-Yeah seriously, that's it. From this example, we can see that our grammar/syntax is: a digit, followed by an operation ('+', '-', '*', '/'), followed by a digit. Let's write an *interpreter* for this. We want a function that takes in calculator code in the form of a string, returns the result of the calculation as an `i32` (though you certaintly can pick a smaller (or larger) number type if you want).
+Yeah seriously, that's it. From this example, we can see that our grammar/syntax is: a digit, followed by an operation (`+`, `-`, `*`, `/`), followed by a digit. Let's write an *interpreter* for this. We want a function that takes in calculator code in the form of a string, returns the result of the calculation as an `i32` (though you certaintly can pick a smaller (or larger) number type if you want). I'm going to add `mod calculator;` in my `src/main.rs` file, create `calculator.rs` in `src/`, and add the code there.
 ```rust
 fn simplest_calculator(code: &str) -> i32 {
     let chars: Vec<char> = code.chars().collect();
@@ -41,7 +41,7 @@ fn simplest_calculator(code: &str) -> i32 {
     }
 }
 ```
-Let's start a test suite to verify our implementation.
+Let's start a test suite in our same file to verify our implementation.
 ```rust
 #[cfg(test)]
 mod tests {
@@ -59,23 +59,46 @@ mod tests {
     }
 }
 ```
+As terribly boring as that might have been for you, what we've just done is the essence of interpretation, and to properly interpret the calculator code, we had to break down the string into the individual components we wanted to work with. Our interpreter demanded 3 different data structures: the first number, the second number, and their operation. The code at the beginning of our interpreter is the parsing phase, the `match op` part is our interpreting phase.
 
-## Why lisp? (and what is it?)
+If you're interested in extending the calculator example,obvious areas to improve are: allow whitespace, multiple-digit numbers, negative numbers, and support for multiple operations `"3 + 4 * 9 - 1"`. Check out the standard docs and try out `String::split_whitespace` instead of `String::chars`! If you've gone through that gamut before, or just want to cut your teeth on something harder, don't worry, up next there's *much* harder interpretation problem!
 
-I've long been super interested in programming language theory and implementation, and while syntax is important, I personally want to be spending my time thinking about language features as much as possible, and leave the art of figuring out a good syntax for a later time. The lisp language, originally devised in a math paper by John McCarthy in the early 60s, is very well-suited to my preferences. Let's see how!
-
-### The challenge of parsing
-
-I want to compare lispy syntax to Rust's. If you're not already familiar with any lisp languages, these comparisons (while not teaching you any "real" lisp implementation) should help make sense of their core syntax style! (aside: Lisp has a fascinating history; if you're interested in learning more, here's [SOME LINKS])
+## The challenge of parsing
 
 Here's some really basic Rust code I want us to think about parsing:
 
-```
-pub fn double(x: i32) -> i32 {
-    x * 2
+```rust
+pub fn double_all(data: &[i32]) -> Vec<i32> {
+    let mut output = Vec::with_capacity(data.len());
+    for x in data {
+        output.push(x * 2);
+    }
+    output
 }
+```
+Yeah, so, wow, there's a million more things going on there.
+
+```clojure
+(annotate double_all {:visibility public, :})
+(fn double_all (data) 
+    (mut-let output (vec::with_capacity (len data))
+        (for x data 
+            (push output (* x 2))
+        )
+    )
+    data
+)
 ```
 
 A lispy syntax version
 
 Now, in this guide, we're only going to be focusing on lisp *syntax*; I leave you to dream up your own keywords to implement!
+
+
+
+I want to compare lispy syntax to Rust's. If you're not already familiar with any lisp languages, these comparisons (while not teaching you any "real" lisp implementation) should help make sense of their core syntax style! (aside: Lisp has a fascinating history; if you're interested in learning more, here's [SOME LINKS])
+
+
+## Why lisp? (and what is it?)
+
+I've long been super interested in programming language theory and implementation, and while syntax is important, I personally want to be spending my time thinking about language features as much as possible, and leave the art of figuring out a good syntax for a later time. The lisp language, originally devised in a math paper by John McCarthy in the early 60s, is very well-suited to my preferences. Let's see how!

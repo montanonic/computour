@@ -1,6 +1,7 @@
 //! Curious to try an imperative, unstructured implementation and without lexing.
 
 use std::mem;
+use tokens::Tokenizer;
 
 pub fn run() {
     let code = r"
@@ -9,41 +10,123 @@ Yes!
     interpret(code);
 }
 
-mod parsing {
-    fn simplest_calculator(code: &str) -> i32 {
-        let chars: Vec<char> = code.chars().collect();
-        // Use base 10 for our familiar decimal numbering system.
-        let num1 = chars[0].to_digit(10).unwrap() as i32;
-        let op = chars[1];
-        let num2 = chars[2].to_digit(10).unwrap() as i32;
+fn interpret(code: &str) {}
 
-        match op {
-            '+' => num1 + num2,
-            '-' => num1 - num2,
-            '*' => num1 * num2,
-            '/' => num1 / num2,
-            fail => panic!("bad operation: {}", fail),
+mod tokens {
+    use std::iter::Map;
+    use std::str::{Chars, Lines};
+
+    use self::Token::*;
+
+    type Tokens = Vec<Token>;
+
+    #[derive(Debug)]
+    pub enum Token {
+        LParen,
+        RParen,
+        /// A left paren immediately (without whitespace) followed by a right paren.
+        /// An alphanumerical word
+        Word(String),
+        /// Must only consist of digits
+        Number(String),
+    }
+
+    /// Streams off the tokens lazily. Stores the tokens internally, allowing
+    /// for extension to arbitrary backtracking if desired.
+    pub struct TokenStream<'string> {
+        /// Have the lifetime of the input string.
+        lines: Lines<'string>,
+        /// Buffer for holding our token results.
+        tokens: Tokens,
+        /// Position within our tokens buffer.
+        pos: usize,
+    }
+
+    impl<'string> TokenStream<'string> {
+        pub fn new(string: &'string str) -> Tokens {
+            let mut this = Self {
+                lines: string.lines(),
+                tokens: Vec::new(),
+            };
+            todo!()
+        }
+
+        /// Appends directly to our buffer to avoid extra allocations when words
+        /// contain multiple
+        fn tokenize_word(&mut self, word: &'string str) -> Token {
+            if let Some(ptype) = has_paren(word) {
+                Self::handle_paren(word, ptype)
+            } else if is_number(word) {
+                Number(word.to_string())
+            } else {
+                todo!()
+            }
+        }
+
+        /// Based on the type of paren contained in the stream, expects all other paren
+        fn handle_paren(word: &'string str, ptype: ParenType) -> impl Iterator<Item = Token> {
+            use ParenType::*;
+            word.chars().map(|char| {
+                let maybe_paren = match ptype {
+                    Left => {
+                        if char == '(' {
+                            Ok(LParen)
+                        } else {
+                            Err(Left)
+                        }
+                    }
+                    Right => {
+                        if char == ')' {
+                            Ok(RParen)
+                        } else {
+                            Err(Right)
+                        }
+                    }
+                };
+                maybe_paren.expect(&format!(
+                    "expected a {:?} parenthesis character",
+                    maybe_paren.unwrap_err()
+                ))
+            })
+        }
+
+        fn next_line_words(&mut self) {
+            self.lines.next().map(|x| x.split_whitespace());
         }
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn simplest_calculator_works() {
-            let code = "9+3";
-            assert_eq!(simplest_calculator(code), 12);
-            let code = "5-9";
-            assert_eq!(simplest_calculator(code), -4);
-            let code = "7*7";
-            assert_eq!(simplest_calculator(code), 49);
-            let code = "5/3";
-            assert_eq!(simplest_calculator(code), 1);
+    fn is_number(word: &str) -> bool {
+        word.chars().all(|ch| ch.is_numeric())
+    }
+
+    /// We want to restrict the grammar of acceptable words somewhat. For example: no parenthesis.
+    fn validate_word() {}
+
+    #[derive(Debug)]
+    enum ParenType {
+        Left,
+        Right,
+    }
+
+    /// # Panics
+    ///
+    /// If the word is malformed (it doesn't start with parenthesis and there's
+    /// parenthesis in the middle of it).
+    fn has_paren(word: &str) -> Option<ParenType> {
+        if word.starts_with('(') {
+            Some(ParenType::Left)
+        } else if word.starts_with(')') {
+            Some(ParenType::Right)
+        }
+        // This word doesn't start with parens, so if there's any parenthesis
+        // left it's malformed.
+        else if word.contains(&['(', ')'][..]) {
+            panic!("a word cannot contain parenthesis within it")
+        } else {
+            None
         }
     }
 }
-
-fn interpret(code: &str) {}
 
 /// This parser will not be helpful for malformed expressions. For example,
 /// parenthesis are allowed inside argument names, so things like h(et(((s)grap
@@ -64,7 +147,10 @@ fn interpret(code: &str) {}
 /// saying that my language doesn't really have nesting, it just has references,
 /// but we let you write nested expressions for convenience, and we can output
 /// the unrolled form for you to look at.
-fn parse(code_string: &str) -> Vec<Operation> {
+///
+/// NOTE: I've stopped implementation on this to redo construction with a
+/// Tokenize -> Parsing construction, and do single pass.
+fn nested_parse(code_string: &str) -> Vec<Operation> {
     let mut words = code_string.split_whitespace();
     // This is our results buffer.
     let mut operations: Vec<Operation> = Vec::new();

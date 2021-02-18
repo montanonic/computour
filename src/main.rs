@@ -8,6 +8,7 @@ mod bytes;
 mod game;
 mod lang;
 mod lc3;
+mod lispy;
 mod nomicon;
 mod old;
 
@@ -22,11 +23,12 @@ enum Run {
     VM,
     Game,
     Lang,
+    Lispy,
     Default,
 }
 use Run::*;
 
-const RUN: Run = Lang;
+const RUN: Run = Lispy;
 
 fn main() {
     match RUN {
@@ -44,6 +46,9 @@ fn main() {
         }
         Lang => {
             return lang::main();
+        }
+        Lispy => {
+            return lispy::main();
         }
         Default => {}
     }
