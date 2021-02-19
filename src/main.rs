@@ -18,10 +18,14 @@ mod nomicon;
 mod old;
 
 use old::vm;
+use std::env::args;
+use strum_macros::EnumString;
 
 #[global_allocator]
 static ALLOCATOR: alloc::MyAllocator = alloc::MyAllocator::new();
 
+#[derive(EnumString)]
+#[strum(serialize_all = "lowercase")]
 enum Run {
     Nomicon,
     LC3,
@@ -33,10 +37,14 @@ enum Run {
 }
 use Run::*;
 
-const RUN: Run = Lispy;
-
 fn main() {
-    match RUN {
+    let mut args = args();
+    let run = args.nth(1).map_or(Default, |str| {
+        str.parse()
+            .expect("argument did not match existing module to run")
+    });
+
+    match run {
         Nomicon => {
             return nomicon::main();
         }
@@ -55,7 +63,9 @@ fn main() {
         Lispy => {
             return lispy::main();
         }
-        Default => {}
+        Default => {
+            println!("Running default main");
+        }
     }
 
     unsafe {
