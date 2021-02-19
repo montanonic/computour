@@ -1,7 +1,7 @@
 //! Curious to try an imperative, unstructured implementation and without lexing.
 
 use std::mem;
-use tokens::Tokenizer;
+use tokens::TokenStream;
 
 pub fn run() {
     let code = r"
@@ -13,60 +13,110 @@ Yes!
 fn interpret(code: &str) {}
 
 mod tokens {
-    use std::iter::Map;
-    use std::str::{Chars, Lines};
-
     use self::Token::*;
 
-    type Tokens = Vec<Token>;
+    use std::str::Lines;
 
-    #[derive(Debug)]
-    pub enum Token {
+    type Tokens<'code> = Vec<Token<'code>>;
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Token<'code> {
         LParen,
         RParen,
-        /// A left paren immediately (without whitespace) followed by a right paren.
-        /// An alphanumerical word
-        Word(String),
-        /// Must only consist of digits
-        Number(String),
+        /// An alphanumerical word.
+        Word(&'code str),
+        /// Must only consist of digits.
+        Number(&'code str),
+        /// End of line.
+        EOL,
     }
 
     /// Streams off the tokens lazily. Stores the tokens internally, allowing
-    /// for extension to arbitrary backtracking if desired.
-    pub struct TokenStream<'string> {
+    /// for extension to arbitrary backtracking if desired. Because of this
+    /// storage, this stream is not zero-copy.
+    pub struct TokenStream<'code> {
         /// Have the lifetime of the input string.
-        lines: Lines<'string>,
-        /// Buffer for holding our token results.
-        tokens: Tokens,
+        lines: Lines<'code>,
+        /// Vec for holding onto our token results.
+        tokens: Tokens<'code>,
         /// Position within our tokens buffer.
         pos: usize,
     }
 
-    impl<'string> TokenStream<'string> {
-        pub fn new(string: &'string str) -> Tokens {
+    impl<'code> TokenStream<'code> {
+        pub fn new(string: &'code str) -> Tokens<'code> {
             let mut this = Self {
                 lines: string.lines(),
                 tokens: Vec::new(),
+                pos: 0,
             };
             todo!()
         }
 
-        /// Appends directly to our buffer to avoid extra allocations when words
-        /// contain multiple
-        fn tokenize_word(&mut self, word: &'string str) -> Token {
-            if let Some(ptype) = has_paren(word) {
-                Self::handle_paren(word, ptype)
-            } else if is_number(word) {
-                Number(word.to_string())
+        /// Gets the next token.
+        pub fn next(&mut self) -> Option<Token<'code>> {
+            // We already have spare tokens, just read them off.
+            if self.pos < self.tokens.len() {
+                let pos = self.pos;
+                self.pos += 1;
+                Some(self.tokens[pos])
+            }
+            // We need more tokens.
+            else if self.pos == self.tokens.len() {
+                let prev_token_count = self.tokens.len();
+                match self.consume_line_into_tokens() {
+                    // There was another line of input, keep reading.
+                    Some(()) => {
+                        // Safeguard just to make sure we never indefinitely recurse with self.next().
+                        assert!(
+                            self.tokens.len() > prev_token_count,
+                            "consume_line_into_tokens should have pushed more tokens to our vector"
+                        );
+                        self.next()
+                    }
+                    // No more lines, we're done lexing.
+                    None => None,
+                }
             } else {
-                todo!()
+                panic!("self.pos should never exceed the length of self.tokens")
+            }
+        }
+
+        /// Reads the next line, pushing every lexed token into `self.tokens`.
+        fn consume_line_into_tokens(&mut self) -> Option<()> {
+            self.lines.next().map(|line| {
+                // We don't want to include an EOL token for anything that is solely a newline.
+                if line.is_empty() {
+                    return;
+                }
+                for word in line.split_whitespace() {
+                    self.tokenize_word(word);
+                }
+                self.tokens.push(EOL);
+            })
+        }
+
+        /// Appends directly to our buffer to avoid extra allocations when words
+        /// split into multliple tokens.
+        fn tokenize_word(&mut self, word: &'code str) {
+            // Words with any parentheses.
+            if let Some(ptype) = has_paren(word) {
+                self.tokens.extend(Self::handle_paren(word, ptype))
+            }
+            // Words of only digits.
+            else if is_number(word) {
+                self.tokens.push(Number(word))
+            }
+            // Arbitrary alphanumeric words that don't satisfy the above cases.
+            else {
+                self.tokens.push(Word(word))
             }
         }
 
         /// Based on the type of paren contained in the stream, expects all other paren
-        fn handle_paren(word: &'string str, ptype: ParenType) -> impl Iterator<Item = Token> {
+        fn handle_paren(word: &'code str, ptype: ParenType) -> impl Iterator<Item = Token<'code>> {
             use ParenType::*;
-            word.chars().map(|char| {
+            word.chars().map(move |char| {
                 let maybe_paren = match ptype {
                     Left => {
                         if char == '(' {
@@ -89,20 +139,13 @@ mod tokens {
                 ))
             })
         }
-
-        fn next_line_words(&mut self) {
-            self.lines.next().map(|x| x.split_whitespace());
-        }
     }
 
     fn is_number(word: &str) -> bool {
         word.chars().all(|ch| ch.is_numeric())
     }
 
-    /// We want to restrict the grammar of acceptable words somewhat. For example: no parenthesis.
-    fn validate_word() {}
-
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     enum ParenType {
         Left,
         Right,

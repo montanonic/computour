@@ -1,4 +1,9 @@
-#![feature(alloc_layout_extra, or_patterns, bindings_after_at)]
+#![feature(
+    alloc_layout_extra,
+    or_patterns,
+    bindings_after_at,
+    type_alias_impl_trait
+)]
 #![warn(rust_2018_idioms)]
 #![allow(unused)]
 
