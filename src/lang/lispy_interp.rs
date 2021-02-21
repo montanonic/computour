@@ -18,30 +18,23 @@ mod tokens {
 
     use self::Token::*;
 
-    type Tokens<'code> = Vec<Token<'code>>;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Token<'code> {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Token {
         LParen,
         RParen,
         /// An alphanumerical word.
-        Word(&'code str),
+        Word(String),
         /// Currently only support integers.
-        Number(&'code str),
+        Number(String),
         Newline,
     }
 
     pub struct TokenStream<'code> {
         /// Position in our `chars` vector.
         pos: usize,
-        /// Separate pointer for peeking ahead.
-        peak_pos: usize,
-        /// Current character.
-        char: char,
         chars: Vec<char>,
         /// Lazily feeds into the chars vector.
         char_iter: Chars<'code>,
-        code: &'code str,
     }
 
     impl<'code> TokenStream<'code> {
@@ -54,75 +47,85 @@ mod tokens {
                 chars: Vec::with_capacity(code.len()),
                 char_iter: code.chars(),
                 pos: 0,
-                peak_pos: 0,
-                char: 0 as char,
-                code
             }
         }
 
-        fn next_token(&mut self) -> Option<Token<'code>> {
-            self.next_char()?;
+        fn next_token(&mut self) -> Option<Token> {
+            let mut char = self.next_char()?;
 
             // Skip whitespace.
-            while self.char.is_whitespace() {
-                self.next_char()?;
+            while char.is_whitespace() {
+                char = self.next_char()?;
             }
 
-            let token = match self.char {
+            let token = match char {
                 '(' => LParen,
                 ')' => RParen,
                 '\n' => Newline,
-                ch => {
-                    if ch.is_numeric() {
-                        while self.char.
+                _ => {
+                    if char.is_numeric() {
+                        Number(self.chars_into_string(char, char::is_numeric, true))
                     }
-                },
+                    // Now that we've matched on numbers, we can assume the rest
+                    // are alphanumeric chars that don't start with a number.
+                    else if char.is_alphanumeric() {
+                        Word(self.chars_into_string(char, char::is_alphanumeric, true))
+                    } else {
+                        panic!("we should never get to this point!")
+                    }
+                }
             };
             Some(token)
         }
 
-        // /// The position of the current char within our stream. Requires
-        // /// next_char to be called at least once.
-        // fn pos(&self) -> usize {
-        //     self.chars.len() - 1
-        // }
-
-        fn next_char(&mut self) -> Option<()> {
-            // Check to see if we need to advance more chars into our vector.
-            if self.pos >= self.chars.len() {
-                self.chars.push(self.char_iter.next()?);
+        /// Applies the predicate on the character, advancing the character
+        /// iterator and constructing a String for each character that matches.
+        /// Once the predicate fails or we run out of characters, we return the
+        /// string up to the current point. Note that if the predicate
+        /// immediately fails, you'll get an empty string.
+        ///
+        /// `expect_whitespace` checks to ensure that the end of the input has
+        /// whitespace. This is usually what you want here.
+        fn chars_into_string(
+            &mut self,
+            mut char: char,
+            pred: impl Fn(char) -> bool,
+            expect_whitespace: bool,
+        ) -> String {
+            let mut vec = Vec::new();
+            while pred(char) {
+                vec.push(char);
+                char = match self.next_char() {
+                    Some(c) => c,
+                    None => break,
+                }
             }
-
-            self.char = self.chars[self.pos];
-            self.pos += 1;
-            self.peak_pos = self.pos;
-            Some(())
+            if expect_whitespace {
+                Self::expect_whitespace(char);
+            }
+            vec.into_iter().collect()
         }
 
-        /// Peeks the next char, advancing the peek pointer so that this can be
-        /// called multiple times in a row. Calling `next_char` will reset the
-        /// peek.
-        fn peek_next(&mut self) {
+        /// Asserts that the given character is whitespace. Useful for ensuring
+        /// mutli-character tokens are correctly formed.
+        fn expect_whitespace(char: char) {
+            assert!(char.is_whitespace(), "expected whitespace")
+        }
+
+        fn next_char(&mut self) -> Option<char> {
             // Check to see if we need to advance more chars into our vector.
             if self.pos >= self.chars.len() {
                 self.chars.push(self.char_iter.next()?);
             }
 
-            if self.peak_pos < self.chars.len() {
-                // We have extra chars available and don't need to read more.
-                self.char = self.chars[self.peak_pos];
-                Some(())
-            } else {
-                // We need to read more chars.
-                self.char_iter.next().map(|ch| {
-                    self.chars.push(ch);
-                })
-            }
+            let char = self.chars[self.pos];
+            self.pos += 1;
+            Some(char)
         }
     }
 
-    impl<'code> Iterator for TokenStream<'code> {
-        type Item = Token<'code>;
+    impl Iterator for TokenStream<'_> {
+        type Item = Token;
         fn next(&mut self) -> Option<Self::Item> {
             self.next_token()
         }
@@ -262,15 +265,15 @@ mod tests {
     fn token_stream_works() {
         use tokens::Token::{self, *};
         let code = "(hey 123 you2 (yes))";
-        let tokens: Vec<Token<'_>> = TokenStream::new(code).collect();
+        let tokens: Vec<Token> = TokenStream::new(code).collect();
         assert_eq!(
             &[
                 LParen,
-                Word("hey"),
-                Number("123"),
-                Word("you2"),
+                Word("hey".into()),
+                Number("123".into()),
+                Word("you2".into()),
                 LParen,
-                Word("yes"),
+                Word("yes".into()),
                 RParen,
                 RParen,
             ],
