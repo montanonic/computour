@@ -4,9 +4,10 @@ use std::mem;
 use tokens::TokenStream;
 
 pub fn run() {
-    let code = r"
+    let code = "
 Yes!
 ";
+    println!("{:?}", code);
     interpret(code);
 }
 
@@ -19,7 +20,7 @@ mod tokens {
 
     type Tokens<'code> = Vec<Token<'code>>;
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Token<'code> {
         LParen,
         RParen,
@@ -44,13 +45,12 @@ mod tokens {
     }
 
     impl<'code> TokenStream<'code> {
-        pub fn new(string: &'code str) -> Tokens<'code> {
-            let mut this = Self {
+        pub fn new(string: &'code str) -> Self {
+            Self {
                 lines: string.lines(),
                 tokens: Vec::new(),
                 pos: 0,
-            };
-            todo!()
+            }
         }
 
         /// Gets the next token.
@@ -80,6 +80,12 @@ mod tokens {
             } else {
                 panic!("self.pos should never exceed the length of self.tokens")
             }
+        }
+
+        /// Fully tokenizes the code, returning a vector of tokens.
+        pub fn into_tokens(mut self) -> Tokens<'code> {
+            while let Some(_) = self.next() {}
+            self.tokens
         }
 
         /// Reads the next line, pushing every lexed token into `self.tokens`.
@@ -156,17 +162,15 @@ mod tokens {
     /// If the word is malformed (it doesn't start with parenthesis and there's
     /// parenthesis in the middle of it).
     fn has_paren(word: &str) -> Option<ParenType> {
-        if word.starts_with('(') {
-            Some(ParenType::Left)
-        } else if word.starts_with(')') {
-            Some(ParenType::Right)
+        if word.starts_with('(') || word.starts_with(')') {
+            true
         }
         // This word doesn't start with parens, so if there's any parenthesis
         // left it's malformed.
         else if word.contains(&['(', ')'][..]) {
             panic!("a word cannot contain parenthesis within it")
         } else {
-            None
+            false
         }
     }
 }
@@ -298,5 +302,30 @@ impl OpBuilder {
             name: self.name.unwrap(),
             arguments: self.arguments,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_stream_works() {
+        use tokens::Token::{self, *};
+        let code = "(hey 123 you2 (yes))";
+        let tokens = TokenStream::new(code).into_tokens();
+        assert_eq!(
+            &[
+                LParen,
+                Word("hey"),
+                Number("123"),
+                Word("you2"),
+                LParen,
+                Word("yes"),
+                RParen,
+                RParen,
+            ],
+            &tokens.as_slice()
+        );
     }
 }
