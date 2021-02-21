@@ -14,13 +14,9 @@ Yes!
 fn interpret(code: &str) {}
 
 mod tokens {
-    use self::Token::*;
+    use std::str::Chars;
 
-    use std::{
-        ops::{Index, Range},
-        slice::SliceIndex,
-        str::{CharIndices, Chars, Lines},
-    };
+    use self::Token::*;
 
     type Tokens<'code> = Vec<Token<'code>>;
 
@@ -30,209 +26,105 @@ mod tokens {
         RParen,
         /// An alphanumerical word.
         Word(&'code str),
-        /// Must only consist of digits.
+        /// Currently only support integers.
         Number(&'code str),
         Newline,
     }
 
-    /// Lazily converts a string into an indexable vector of chars. The vector
-    /// will populate only as much as `next` is called, thus indexing is only
-    /// intended for backtracking reasons or slicing, not lookahead or random
-    /// access.
-    struct CharBuffer<'string> {
-        chars: Chars<'string>,
-        vec: Vec<char>,
-    }
-
-    impl<'string> CharBuffer<'string> {
-        fn new(string: &'string str) -> Self {
-            Self {
-                chars: string.chars(),
-                // This will overallocate in every case but the best-case, but
-                // it lets us avoid reallocating at the cost of 4x memory space
-                // in the worst case. Non-diacritic latin text should generally
-                // fall under best-case or near best-case behavior.
-                vec: Vec::with_capacity(string.len()),
-            }
-        }
-
-        fn next(&mut self) -> Option<char> {
-            self.chars.next().map(|ch| {
-                self.vec.push(ch);
-                ch
-            })
-        }
-
-        fn len(&self) -> usize {
-            self.vec.len()
-        }
-    }
-
-    // impl<'string> Index<usize> for CharBuffer<'string> {
-    //     type Output = char;
-    //     fn index(&self, index: usize) -> &Self::Output {
-    //         &self.vec[index]
-    //     }
-    // }
-
-    impl<'string, Idx: SliceIndex<[char]>> Index<Idx> for CharBuffer<'string> {
-        type Output = Idx::Output;
-        fn index(&self, index: Idx) -> &Self::Output {
-            &self.vec[index]
-        }
-    }
-
-    /// Streams off the tokens lazily. Stores the tokens internally, allowing
-    /// for extension to arbitrary backtracking if desired. Because of this
-    /// storage, this stream is not zero-copy.
     pub struct TokenStream<'code> {
-        chars: CharBuffer<'code>,
-        /// Vec for holding onto our token results.
-        tokens: Tokens<'code>,
-        /// Position within our tokens buffer.
+        /// Position in our `chars` vector.
         pos: usize,
+        /// Separate pointer for peeking ahead.
+        peak_pos: usize,
+        /// Current character.
+        char: char,
+        chars: Vec<char>,
+        /// Lazily feeds into the chars vector.
+        char_iter: Chars<'code>,
+        code: &'code str,
     }
 
     impl<'code> TokenStream<'code> {
         pub fn new(code: &'code str) -> Self {
             Self {
-                chars: CharBuffer::new(code),
-                tokens: Vec::new(),
+                // The vector is potentially overallocated as code.len() >=
+                // code.chars().collect().len() (because UTF-8 is
+                // variable-length, so multiple bytes might correspond with a single
+                // char).
+                chars: Vec::with_capacity(code.len()),
+                char_iter: code.chars(),
                 pos: 0,
+                peak_pos: 0,
+                char: 0 as char,
+                code
             }
         }
 
-        /// Gets the next token.
-        pub fn next(&mut self) -> Option<Token<'code>> {
-            // We already have spare tokens, just read them off.
-            if self.pos < self.tokens.len() {
-                let pos = self.pos;
-                self.pos += 1;
-                Some(self.tokens[pos])
-            }
-            // We need more tokens.
-            else if self.pos == self.tokens.len() {
-                let prev_token_count = self.tokens.len();
-                match self.consume_line_into_tokens() {
-                    // There was another line of input, keep reading.
-                    Some(()) => {
-                        // Safeguard just to make sure we never indefinitely recurse with self.next().
-                        assert!(
-                            self.tokens.len() > prev_token_count,
-                            "consume_line_into_tokens should have pushed more tokens to our vector"
-                        );
-                        self.next()
-                    }
-                    // No more lines, we're done lexing.
-                    None => None,
-                }
-            } else {
-                panic!("self.pos should never exceed the length of self.tokens")
-            }
-        }
-
-        /// Fully tokenizes the code, returning a vector of tokens.
-        pub fn into_tokens(mut self) -> Tokens<'code> {
-            while let Some(_) = self.next() {}
-            self.tokens
-        }
-
-        fn next_char(&mut self) -> Option<char> {
-            self.chars.next()
-        }
-
-        /// Returns a slice of the code string from the current character up
-        /// through all the characters until the predicate returns false.
-        fn take_while(&mut self, pred: impl Fn(char) -> bool) -> String {
-            let start_index = self.chars.len();
-            let mut end_index = start_index;
-            while let Some(next_char) = self.chars.next() {
-                if !pred(next_char) {
-                    break;
-                }
-            }
-            self.chars[start_index..self.chars.len()].iter().collect()
-        }
-
-        /// Returns the next token, or None if finished. Panics on malformed token.
         fn next_token(&mut self) -> Option<Token<'code>> {
-            self.next_char().map(|ch| match ch {
+            self.next_char()?;
+
+            // Skip whitespace.
+            while self.char.is_whitespace() {
+                self.next_char()?;
+            }
+
+            let token = match self.char {
                 '(' => LParen,
                 ')' => RParen,
                 '\n' => Newline,
-                any => 
-            })
-        }
-
-        /// Appends directly to our buffer to avoid extra allocations when words
-        /// split into multliple tokens.
-        fn tokenize_word(&mut self, word: &'code str) {
-            // Words with any parentheses.
-            if let Some(ptype) = has_paren(word) {
-                self.tokens.extend(Self::handle_paren(word, ptype))
-            }
-            // Words of only digits.
-            else if is_number(word) {
-                self.tokens.push(Number(word))
-            }
-            // Arbitrary alphanumeric words that don't satisfy the above cases.
-            else {
-                self.tokens.push(Word(word))
-            }
-        }
-
-        /// Based on the type of paren contained in the stream, expects all other paren
-        fn handle_paren(word: &'code str, ptype: ParenType) -> impl Iterator<Item = Token<'code>> {
-            use ParenType::*;
-            word.chars().map(move |char| {
-                let maybe_paren = match ptype {
-                    Left => {
-                        if char == '(' {
-                            Ok(LParen)
-                        } else {
-                            Err(Left)
-                        }
+                ch => {
+                    if ch.is_numeric() {
+                        while self.char.
                     }
-                    Right => {
-                        if char == ')' {
-                            Ok(RParen)
-                        } else {
-                            Err(Right)
-                        }
-                    }
-                };
-                maybe_paren.expect(&format!(
-                    "expected a {:?} parenthesis character",
-                    maybe_paren.unwrap_err()
-                ))
-            })
+                },
+            };
+            Some(token)
+        }
+
+        // /// The position of the current char within our stream. Requires
+        // /// next_char to be called at least once.
+        // fn pos(&self) -> usize {
+        //     self.chars.len() - 1
+        // }
+
+        fn next_char(&mut self) -> Option<()> {
+            // Check to see if we need to advance more chars into our vector.
+            if self.pos >= self.chars.len() {
+                self.chars.push(self.char_iter.next()?);
+            }
+
+            self.char = self.chars[self.pos];
+            self.pos += 1;
+            self.peak_pos = self.pos;
+            Some(())
+        }
+
+        /// Peeks the next char, advancing the peek pointer so that this can be
+        /// called multiple times in a row. Calling `next_char` will reset the
+        /// peek.
+        fn peek_next(&mut self) {
+            // Check to see if we need to advance more chars into our vector.
+            if self.pos >= self.chars.len() {
+                self.chars.push(self.char_iter.next()?);
+            }
+
+            if self.peak_pos < self.chars.len() {
+                // We have extra chars available and don't need to read more.
+                self.char = self.chars[self.peak_pos];
+                Some(())
+            } else {
+                // We need to read more chars.
+                self.char_iter.next().map(|ch| {
+                    self.chars.push(ch);
+                })
+            }
         }
     }
 
-    fn is_number(word: &str) -> bool {
-        word.chars().all(|ch| ch.is_numeric())
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    enum ParenType {
-        Left,
-        Right,
-    }
-
-    /// # Panics
-    ///
-    /// If the word is malformed (it doesn't start with parenthesis and there's
-    /// parenthesis in the middle of it).
-    fn has_paren(word: &str) -> Option<ParenType> {
-        if word.starts_with('(') || word.starts_with(')') {
-            true
-        }
-        // This word doesn't start with parens, so if there's any parenthesis
-        // left it's malformed.
-        else if word.contains(&['(', ')'][..]) {
-            panic!("a word cannot contain parenthesis within it")
-        } else {
-            false
+    impl<'code> Iterator for TokenStream<'code> {
+        type Item = Token<'code>;
+        fn next(&mut self) -> Option<Self::Item> {
+            self.next_token()
         }
     }
 }
@@ -328,11 +220,6 @@ fn nested_parse(code_string: &str) -> Vec<Operation> {
     }
 }
 
-/// Expressions always begin and end with parenthesis.
-fn is_expr(word: &str) {}
-
-fn parse_expr<'a>(mut expression: impl Iterator<Item = &'a str>) {}
-
 /// Syntax: (name arguments*).
 struct Operation {
     name: String,
@@ -375,7 +262,7 @@ mod tests {
     fn token_stream_works() {
         use tokens::Token::{self, *};
         let code = "(hey 123 you2 (yes))";
-        let tokens = TokenStream::new(code).into_tokens();
+        let tokens: Vec<Token<'_>> = TokenStream::new(code).collect();
         assert_eq!(
             &[
                 LParen,
