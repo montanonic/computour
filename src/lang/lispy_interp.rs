@@ -16,7 +16,11 @@ fn interpret(code: &str) {}
 mod tokens {
     use self::Token::*;
 
-    use std::str::Lines;
+    use std::{
+        ops::{Index, Range},
+        slice::SliceIndex,
+        str::{CharIndices, Chars, Lines},
+    };
 
     type Tokens<'code> = Vec<Token<'code>>;
 
@@ -28,16 +32,61 @@ mod tokens {
         Word(&'code str),
         /// Must only consist of digits.
         Number(&'code str),
-        /// End of line.
-        EOL,
+        Newline,
+    }
+
+    /// Lazily converts a string into an indexable vector of chars. The vector
+    /// will populate only as much as `next` is called, thus indexing is only
+    /// intended for backtracking reasons or slicing, not lookahead or random
+    /// access.
+    struct CharBuffer<'string> {
+        chars: Chars<'string>,
+        vec: Vec<char>,
+    }
+
+    impl<'string> CharBuffer<'string> {
+        fn new(string: &'string str) -> Self {
+            Self {
+                chars: string.chars(),
+                // This will overallocate in every case but the best-case, but
+                // it lets us avoid reallocating at the cost of 4x memory space
+                // in the worst case. Non-diacritic latin text should generally
+                // fall under best-case or near best-case behavior.
+                vec: Vec::with_capacity(string.len()),
+            }
+        }
+
+        fn next(&mut self) -> Option<char> {
+            self.chars.next().map(|ch| {
+                self.vec.push(ch);
+                ch
+            })
+        }
+
+        fn len(&self) -> usize {
+            self.vec.len()
+        }
+    }
+
+    // impl<'string> Index<usize> for CharBuffer<'string> {
+    //     type Output = char;
+    //     fn index(&self, index: usize) -> &Self::Output {
+    //         &self.vec[index]
+    //     }
+    // }
+
+    impl<'string, Idx: SliceIndex<[char]>> Index<Idx> for CharBuffer<'string> {
+        type Output = Idx::Output;
+        fn index(&self, index: Idx) -> &Self::Output {
+            &self.vec[index]
+        }
     }
 
     /// Streams off the tokens lazily. Stores the tokens internally, allowing
     /// for extension to arbitrary backtracking if desired. Because of this
     /// storage, this stream is not zero-copy.
     pub struct TokenStream<'code> {
-        /// Have the lifetime of the input string.
-        lines: Lines<'code>,
+        chars: CharBuffer<'code>,
         /// Vec for holding onto our token results.
         tokens: Tokens<'code>,
         /// Position within our tokens buffer.
@@ -45,9 +94,9 @@ mod tokens {
     }
 
     impl<'code> TokenStream<'code> {
-        pub fn new(string: &'code str) -> Self {
+        pub fn new(code: &'code str) -> Self {
             Self {
-                lines: string.lines(),
+                chars: CharBuffer::new(code),
                 tokens: Vec::new(),
                 pos: 0,
             }
@@ -88,17 +137,30 @@ mod tokens {
             self.tokens
         }
 
-        /// Reads the next line, pushing every lexed token into `self.tokens`.
-        fn consume_line_into_tokens(&mut self) -> Option<()> {
-            self.lines.next().map(|line| {
-                // We don't want to include an EOL token for anything that is solely a newline.
-                if line.is_empty() {
-                    return;
+        fn next_char(&mut self) -> Option<char> {
+            self.chars.next()
+        }
+
+        /// Returns a slice of the code string from the current character up
+        /// through all the characters until the predicate returns false.
+        fn take_while(&mut self, pred: impl Fn(char) -> bool) -> String {
+            let start_index = self.chars.len();
+            let mut end_index = start_index;
+            while let Some(next_char) = self.chars.next() {
+                if !pred(next_char) {
+                    break;
                 }
-                for word in line.split_whitespace() {
-                    self.tokenize_word(word);
-                }
-                self.tokens.push(EOL);
+            }
+            self.chars[start_index..self.chars.len()].iter().collect()
+        }
+
+        /// Returns the next token, or None if finished. Panics on malformed token.
+        fn next_token(&mut self) -> Option<Token<'code>> {
+            self.next_char().map(|ch| match ch {
+                '(' => LParen,
+                ')' => RParen,
+                '\n' => Newline,
+                any => 
             })
         }
 
