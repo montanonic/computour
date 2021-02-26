@@ -42,7 +42,9 @@ impl<'input> Lexer<'input> {
         self.read_position += 1;
     }
 
-    pub fn next_token(&mut self) -> Token<'_> {
+    /// Givens the next lexed token from the input code. Once we reach the end
+    /// of the input, None will be returned.
+    pub fn next_token(&mut self) -> Option<Token<'input>> {
         self.skip_whitespace();
 
         let ch = self.ch as char;
@@ -50,25 +52,25 @@ impl<'input> Lexer<'input> {
             '=' | ';' | '(' | ')' | ',' | '+' | '{' | '}' => {
                 Token::from_str(&ch.to_string()).unwrap()
             }
-            '\0' => Token::EOF,
+            '\0' => return None,
             _ => {
                 if is_valid_ident_letter(ch) {
                     // Early exit to avoid calling read_char again, as
                     // lookup_ident calls read_char until we fail to match (so
                     // it's already where it should be).
-                    return Token::lookup_ident(self.read_identifier());
+                    return Some(Token::lookup_ident(self.read_identifier()));
                 } else if ch.is_ascii_digit() {
                     // Early exit for the same reason as identifiers.
-                    return Token::Int(self.read_number().parse().expect(
+                    return Some(Token::Int(self.read_number().parse().expect(
                         "Expected digits to parse into an i64 value, but parsing failed.",
-                    ));
+                    )));
                 } else {
                     Token::Illegal
                 }
             }
         };
         self.read_char();
-        token
+        Some(token)
     }
 
     /// From the current position, reads as many characters as possible that are
@@ -102,6 +104,13 @@ fn is_valid_ident_letter(ch: char) -> bool {
     match ch {
         '_' | '!' => true,
         _ => ch.is_ascii_alphabetic(),
+    }
+}
+
+impl<'input> Iterator for Lexer<'input> {
+    type Item = Token<'input>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_token()
     }
 }
 
@@ -167,11 +176,11 @@ let result = add(five, ten);
             Ident("ten"),
             RParen,
             Semicolon,
-            EOF,
         ];
 
-        for (i, token) in tests.into_iter().enumerate() {
-            assert_eq!(token, l.next_token(), "at token #{}", i + 1);
+        for (i, test_token) in tests.into_iter().enumerate() {
+            assert_eq!(l.next().unwrap(), test_token, "at token #{}", i + 1);
         }
+        assert_eq!(l.next(), None);
     }
 }

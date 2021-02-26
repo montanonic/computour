@@ -8,8 +8,6 @@ use Token::*;
 #[strum(serialize_all = "lowercase")]
 pub enum Token<'str> {
     Illegal,
-    #[strum(serialize = "")]
-    EOF,
 
     // Identifiers + literals
     Ident(&'str str),
