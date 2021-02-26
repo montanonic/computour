@@ -42,6 +42,15 @@ impl<'input> Lexer<'input> {
         self.read_position += 1;
     }
 
+    /// Looks at what the next char would be without advancing the iterator.
+    fn peek_char(&self) -> Option<char> {
+        if self.read_position as usize >= self.input.len() {
+            None
+        } else {
+            Some(self.input.as_bytes()[self.read_position as usize] as char)
+        }
+    }
+
     /// Givens the next lexed token from the input code. Once we reach the end
     /// of the input, None will be returned.
     pub fn next_token(&mut self) -> Option<Token<'input>> {
@@ -49,8 +58,24 @@ impl<'input> Lexer<'input> {
 
         let ch = self.ch as char;
         let token = match ch {
-            '=' | ';' | ',' | '+' | '-' | '*' | '/' | '<' | '>' | '!' | '{' | '}' | '(' | ')' => {
+            ';' | ',' | '+' | '-' | '*' | '/' | '<' | '>' | '{' | '}' | '(' | ')' => {
                 Token::from_str(&ch.to_string()).unwrap()
+            }
+            '=' => {
+                if let Some('=') = self.peek_char() {
+                    self.read_char();
+                    Token::EQ
+                } else {
+                    Token::Assign
+                }
+            }
+            '!' => {
+                if let Some('=') = self.peek_char() {
+                    self.read_char();
+                    Token::NotEQ
+                } else {
+                    Token::Bang
+                }
             }
             '\0' => return None,
             _ => {
@@ -133,6 +158,9 @@ let result = add(five, ten);
 
 !-/*5;
 5 < 10 > 5;
+
+10 == 10;
+10 != 9;
 ";
 
         let mut l = Lexer::new(input);
@@ -192,6 +220,16 @@ let result = add(five, ten);
             Int(10),
             GT,
             Int(5),
+            Semicolon,
+            // Line 13
+            Int(10),
+            EQ,
+            Int(10),
+            Semicolon,
+            // Line 14
+            Int(10),
+            NotEQ,
+            Int(9),
             Semicolon,
         ];
 
