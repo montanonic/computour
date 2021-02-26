@@ -19,6 +19,7 @@ mod lc3;
 mod lispy;
 mod nomicon;
 mod old;
+mod rune;
 
 use old::vm;
 use std::env::args;
@@ -36,6 +37,7 @@ enum Run {
     Game,
     Lang,
     Lispy,
+    Rune,
     Default,
 }
 use Run::*;
@@ -65,6 +67,11 @@ fn main() {
         }
         Lispy => {
             return lispy::main();
+        }
+        Rune => {
+            return {
+                rune::main(&args.next().unwrap());
+            };
         }
         Default => {
             println!("Running default main");
