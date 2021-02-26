@@ -7,6 +7,9 @@
 #![warn(rust_2018_idioms)]
 #![allow(unused)]
 
+#[macro_use]
+extern crate pest_derive;
+
 mod alloc;
 mod bits;
 mod bytes;

@@ -1,0 +1,23 @@
+WHITESPACE = _{ " " }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+program = _{ SOI ~ "\n"* ~ (expr ~ "\n"+)* ~ expr? ~ EOI }
+
+// // A code_line is just any valid thing to put onto a line of code.
+// code_line = _{ expr | comment }
+
+expr = { "(" ~ value+ ~ ")" }
+
+// Normally in lisp an expression can itself be a value, but I'm simplifying by
+// not allowing that yet.
+value = _{ number | word | string | operator }
+
+number = @{ positive | negative }
+    positive = { ASCII_DIGIT+ }
+    negative = { "-" ~ positive+ }
+
+word = @{ ASCII_ALPHA+ ~ ASCII_ALPHANUMERIC* }
+
+string = !{ "\"" ~ LETTER* ~ "\"" }
+
+operator = @{ (SYMBOL | OTHER_PUNCTUATION)+ }
