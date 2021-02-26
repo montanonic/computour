@@ -72,7 +72,7 @@ impl<'str> Token<'str> {
             |_| Ident(str),
             |token| {
                 match token {
-                    Function | Let => token,
+                    Function | Let | True | False | If | Else | Return => token,
                     // Token is not a keyword.
                     _ => Ident(str),
                 }

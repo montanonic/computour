@@ -49,7 +49,7 @@ impl<'input> Lexer<'input> {
 
         let ch = self.ch as char;
         let token = match ch {
-            '=' | ';' | '(' | ')' | ',' | '+' | '{' | '}' => {
+            '=' | ';' | ',' | '+' | '-' | '*' | '/' | '<' | '>' | '!' | '{' | '}' | '(' | ')' => {
                 Token::from_str(&ch.to_string()).unwrap()
             }
             '\0' => return None,
@@ -130,6 +130,9 @@ let add = fn(x, y) {
 };
 
 let result = add(five, ten);
+
+!-/*5;
+5 < 10 > 5;
 ";
 
         let mut l = Lexer::new(input);
@@ -176,11 +179,25 @@ let result = add(five, ten);
             Ident("ten"),
             RParen,
             Semicolon,
+            // Line 10
+            Bang,
+            Minus,
+            Slash,
+            Asterisk,
+            Int(5),
+            Semicolon,
+            // Line 11
+            Int(5),
+            LT,
+            Int(10),
+            GT,
+            Int(5),
+            Semicolon,
         ];
 
         for (i, test_token) in tests.into_iter().enumerate() {
             assert_eq!(l.next().unwrap(), test_token, "at token #{}", i + 1);
         }
-        assert_eq!(l.next(), None);
+        assert_eq!(l.next(), None, "no more tokens should be left in the lexer");
     }
 }
