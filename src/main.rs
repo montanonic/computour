@@ -17,11 +17,10 @@ mod game;
 mod lang;
 mod lc3;
 mod lispy;
+mod monkey;
 mod nomicon;
-mod old;
 mod rune;
 
-use old::vm;
 use std::env::args;
 use strum_macros::EnumString;
 
@@ -33,11 +32,11 @@ static ALLOCATOR: alloc::MyAllocator = alloc::MyAllocator::new();
 enum Run {
     Nomicon,
     LC3,
-    VM,
     Game,
     Lang,
     Lispy,
     Rune,
+    Monkey,
     Default,
 }
 use Run::*;
@@ -56,9 +55,6 @@ fn main() {
         LC3 => {
             return lc3::main();
         }
-        VM => {
-            return vm::main();
-        }
         Game => {
             return game::main();
         }
@@ -72,6 +68,9 @@ fn main() {
             return {
                 rune::main(&args.next().unwrap());
             };
+        }
+        Monkey => {
+            return monkey::main();
         }
         Default => {
             println!("Running default main");
