@@ -53,7 +53,7 @@ impl<'input> Lexer<'input> {
 
     /// Givens the next lexed token from the input code. Once we reach the end
     /// of the input, None will be returned.
-    pub fn next_token(&mut self) -> Option<Token<'input>> {
+    fn next_token(&mut self) -> Option<Token<'input>> {
         self.skip_whitespace();
 
         let ch = self.ch as char;

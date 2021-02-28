@@ -1,7 +1,12 @@
+mod ast;
 mod lexer;
+mod parser;
+mod repl;
 mod token;
+
+use std::io;
+
 pub fn main() {
-    println!("{}", token::Token::Comma);
-    println!("{}", token::Token::Semicolon);
-    println!("{}", (0 as char) as u8 == 0);
+    println!("Welcome to the Monkey REPL");
+    repl::start(io::stdin(), io::stdout());
 }
