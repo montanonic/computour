@@ -32,8 +32,14 @@ impl<'input> Parser<'input> {
         let mut program = ast::Program::new();
 
         while let Some(curr_token) = self.curr_token {
-            let stmt = self.parse_statement();
-            stmt.map(|s| program.statements.push(s));
+            let maybe_statement = self.parse_statement();
+            match maybe_statement {
+                Some(statement) => program.statements.push(statement),
+                None => panic!(format!(
+                    "Failed to parse at token: {:?}. Next token is: {:?}",
+                    curr_token, self.peek_token
+                )),
+            }
             self.next_token();
         }
 
