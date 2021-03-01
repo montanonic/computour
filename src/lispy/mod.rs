@@ -1,23 +1,73 @@
 mod calculator;
 
-use boolinator::Boolinator;
-use std::{borrow::Cow, str::pattern::Pattern};
-
-type Str<'a> = Cow<'a, str>;
+use std::str::pattern::Pattern;
 
 pub fn main() {
     println!("{:?}", '+'.is_contained_in("+-123"));
 }
 
-fn parse(source: &str) {
-    let tokenizer = Tokenizer::new(source);
-    let tokens = tokenizer.tokenize();
+struct Parser {
+    tokenizer: Tokenizer,
+}
 
-    for token in tokens {
-        use Token::*;
-        // match token {}
+impl Parser {
+    fn new(source: &str) -> Self {
+        Self {
+            tokenizer: Tokenizer::new(source),
+        }
+    }
+
+    fn parse(&self) -> Vec<Expr<'_>> {
+        let mut expressions = Vec::new();
+        let mut expr_stack = ExprStack::new();
+
+        for token in self.tokenizer.tokenize() {
+            use AST::*;
+            match token {
+                Token::LParen => {
+                    expr_stack.push(Expr(Vec::new()));
+                }
+                Token::RParen => match expr_stack.pop() {
+                    Some(expr) => expressions.push(expr),
+                    None => panic!("got RParen token without matching LParen"),
+                },
+                Token::Word(val) => expr_stack.push_inside(Ident(val)),
+                Token::Int64(val) => expr_stack.push_inside(Int64(val)),
+                _ => unimplemented!(),
+            }
+        }
+
+        expressions
     }
 }
+
+struct ExprStack<'a>(Vec<Expr<'a>>);
+impl<'a> ExprStack<'a> {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn pop(&mut self) -> Option<Expr<'a>> {
+        self.0.pop()
+    }
+
+    fn push(&mut self, expr: Expr<'a>) {
+        self.0.push(expr);
+    }
+
+    /// Pushes inside of the expression at the top of the stack.
+    fn push_inside(&mut self, ast: AST<'a>) {
+        self.0.last_mut().unwrap().0.push(ast);
+    }
+}
+
+enum AST<'a> {
+    Ident(&'a str),
+    Int64(i64),
+}
+
+/// An expression is just parenthesis surrounding AST nodes: (thing 33 "yes").
+struct Expr<'a>(Vec<AST<'a>>);
 
 /// Extracts an expression from the current point, expecting the token slice to
 /// begin with an LParen.
@@ -100,7 +150,7 @@ impl Tokenizer {
             {
                 tokens.push(Token::Int64(word.parse().unwrap()));
             } else if is_valid_identifier(first_char, word) {
-                tokens.push(Token::Ident(word));
+                tokens.push(Token::Word(word));
             } else {
                 unimplemented!()
             }
@@ -131,7 +181,7 @@ fn ensure_each_token_has_whitespace_surrounding(source: &str) -> String {
 
 #[derive(Debug, PartialEq, Eq)]
 enum Token<'a> {
-    Ident(&'a str),
+    Word(&'a str),
     Int64(i64),
     LParen,
     RParen,
@@ -156,8 +206,8 @@ mod tests {
             RParen,
             LParen,
             LParen,
-            Ident("adam".into()),
-            Ident("app11e".into()),
+            Word("adam"),
+            Word("app11e"),
         ];
         for (i, token) in expected.into_iter().enumerate() {
             assert_eq!(token, tokens[i]);
@@ -172,6 +222,8 @@ mod tests {
 
         let tokens = vec![LParen, LParen, RParen];
         assert!(extract_expression(&tokens).is_none());
+        let tokens = vec![LParen, LParen, RParen, Int64(1234), RParen];
+        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
         let tokens = vec![LParen, RParen, LParen];
         assert_eq!(extract_expression(&tokens).unwrap(), &tokens[0..2]);
 

@@ -1,3 +1,5 @@
+# Attempt at a Parsing Primer
+
 Hi there! In this post, I'm going to do a hands on walkthrough of some parsing essentials for programming languages. We're going to write a basic lisp-style parser (in the Rust programming language), and deeply think about every step involved. I feel that one of the things that we could use more of in education around language parsers is a hands-on intuition for why common parsing techniques are the way they are. I want us to experience together different implementation pitfalls as we go from naive code, up to something that works well and is extensible. I hope you'll enjoy this learning journey alongside me! Please feel welcome to jump ahead in your implementation as you read along, and also to extend things in your own ways! Have fun!
 
 ## Building an intuition for what parsing is
