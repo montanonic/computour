@@ -2,7 +2,8 @@
     alloc_layout_extra,
     or_patterns,
     bindings_after_at,
-    type_alias_impl_trait
+    type_alias_impl_trait,
+    pattern
 )]
 #![warn(rust_2018_idioms)]
 #![allow(unused)]

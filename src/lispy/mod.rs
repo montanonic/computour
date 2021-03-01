@@ -1,16 +1,48 @@
 mod calculator;
 
 use boolinator::Boolinator;
-use std::borrow::Cow;
+use std::{borrow::Cow, str::pattern::Pattern};
 
 type Str<'a> = Cow<'a, str>;
 
 pub fn main() {
-    println!("{:?}", "+32".parse::<i32>());
+    println!("{:?}", '+'.is_contained_in("+-123"));
 }
 
 fn parse(source: &str) {
-    let tokens = Tokenizer::new(source).tokenize();
+    let tokenizer = Tokenizer::new(source);
+    let tokens = tokenizer.tokenize();
+
+    for token in tokens {
+        use Token::*;
+        // match token {}
+    }
+}
+
+/// Extracts an expression from the current point, expecting the token slice to
+/// begin with an LParen.
+fn extract_expression<'a>(tokens: &'a [Token<'a>]) -> Option<&'a [Token<'a>]> {
+    assert_eq!(tokens.get(0), Some(&Token::LParen));
+
+    let mut parens_bal = 1;
+    let mut end_index = 1;
+    for token in tokens.iter().skip(1) {
+        if parens_bal == 0 {
+            break;
+        }
+        match token {
+            Token::LParen => parens_bal += 1,
+            Token::RParen => parens_bal -= 1,
+            _ => {}
+        }
+        end_index += 1;
+    }
+
+    if parens_bal == 0 {
+        Some(&tokens[0..end_index])
+    } else {
+        None
+    }
 }
 
 /// The reason I use a struct instead of just a function for tokenization is
@@ -50,30 +82,41 @@ impl Tokenizer {
             // Safe because split_whitespace will not produce empty strings.
             let first_char = word.chars().nth(0).unwrap();
 
-            if word.chars().all(|ch| ch.is_alphabetic()) {
-                tokens.push(Token::Ident(word));
-            }
-            // Is a positive or negative number.
-            else if (first_char == '-' || first_char == '+' || first_char.is_ascii_digit())
-                && word.chars().skip(1).all(|ch| ch.is_ascii_digit())
-            {
-                tokens.push(Token::Int64(word.parse().unwrap()));
-            }
-            // First char is alphabetic, and rest of chars are alphanumeric.
-            else if first_char.is_alphabetic()
-                && word.chars().skip(1).all(|ch| ch.is_alphanumeric())
-            {
-                tokens.push(Token::Ident(word));
-            } else if word == "(" {
+            dbg!(word);
+
+            if word == "(" {
                 tokens.push(Token::LParen);
             } else if word == ")" {
                 tokens.push(Token::RParen);
+            }
+            // Is a positive number.
+            else if word.chars().all(|ch| ch.is_ascii_digit()) {
+                tokens.push(Token::Int64(word.parse().unwrap()));
+            }
+            // Is a positive or negative number (explicit sign).
+            else if (first_char == '-' || first_char == '+')
+                && word.len() > 1 // Make sure we don't solely match a + or -.
+                && word.chars().skip(1).all(|ch| ch.is_ascii_digit())
+            {
+                tokens.push(Token::Int64(word.parse().unwrap()));
+            } else if is_valid_identifier(first_char, word) {
+                tokens.push(Token::Ident(word));
             } else {
                 unimplemented!()
             }
         }
         tokens
     }
+}
+
+const OPERATOR_CHARS: &'static str = "+-/*!@#$%&";
+
+fn is_valid_identifier(first_char: char, word: &str) -> bool {
+    (first_char.is_alphanumeric() || first_char.is_contained_in(OPERATOR_CHARS))
+        && word
+            .chars()
+            .skip(1)
+            .all(|ch| ch.is_alphanumeric() || ch.is_contained_in(OPERATOR_CHARS))
 }
 
 /// In our lisp, the only tokens that are allowed to not have whitespace between
@@ -92,14 +135,6 @@ enum Token<'a> {
     Int64(i64),
     LParen,
     RParen,
-}
-
-/// Expects source to start with an LParen.
-fn extract_expression(source_starting_at_expr: Cow<'_, str>) {
-    let mut chars = source_starting_at_expr.chars();
-    assert_eq!(chars.nth(0), Some('('));
-
-    // chars.
 }
 
 #[cfg(test)]
@@ -127,5 +162,21 @@ mod tests {
         for (i, token) in expected.into_iter().enumerate() {
             assert_eq!(token, tokens[i]);
         }
+    }
+
+    #[test]
+    fn test_extract_expression() {
+        use Token::*;
+        let tokens = vec![LParen, RParen];
+        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
+
+        let tokens = vec![LParen, LParen, RParen];
+        assert!(extract_expression(&tokens).is_none());
+        let tokens = vec![LParen, RParen, LParen];
+        assert_eq!(extract_expression(&tokens).unwrap(), &tokens[0..2]);
+
+        let tokenizer = Tokenizer::new("(+ (- 3 4) 5 6)");
+        let tokens = tokenizer.tokenize();
+        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
     }
 }
