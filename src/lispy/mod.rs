@@ -10,39 +10,70 @@ pub fn main() {
 }
 
 fn parse(source: &str) {
-    let tokens = tokenize(source);
+    let tokens = Tokenizer::new(source).tokenize();
 }
 
-fn tokenize<'a>(source: &'a str) -> Vec<Token> {
-    let mut tokens = Vec::new();
+/// The reason I use a struct instead of just a function for tokenization is
+/// because we want to ensure that our input data is ran through
+/// `ensure_each_token_has_whitespace_surrounding` before tokenizing, but
+/// because that function returns a String, *something* has to be responsible
+/// for that strings ownership if we use any references to it.
+///
+/// So, our options are either create a newly allocated String for *each*
+/// identifier, or hold ownership of our String so that we can maintain
+/// references to it. We opt for the latter for performance reasons.
+///
+/// This is a key example of how Rust's borrowing semantics leads to design
+/// patterns could be completely avoided in other languages. That is to say: in
+/// any other language, our tokenization process could just be a simple
+/// function. However, in Rust, this is impossible without unsafe code when
+/// using simple functions like `str::replace`, which by allocating strings,
+/// force us to manage ownership of those Strings. Returning references to them
+/// would immediately yield dangling pointers otherwise.
+///
+/// In exchange for control, Rust hits our ergonomics here.
+struct Tokenizer {
+    source: String,
+}
 
-    let source = ensure_each_token_has_whitespace_surrounding(source);
-    for word in source.split_whitespace() {
-        // Safe because split_whitespace will not produce empty strings.
-        let first_char = word.chars().nth(0).unwrap();
-
-        if word.chars().all(|ch| ch.is_alphabetic()) {
-            tokens.push(Token::Ident(word.into()));
-        }
-        // Is a positive or negative number.
-        else if (first_char == '-' || first_char == '+' || first_char.is_ascii_digit())
-            && word.chars().skip(1).all(|ch| ch.is_ascii_digit())
-        {
-            tokens.push(Token::Int64(word.parse().unwrap()));
-        }
-        // First char is alphabetic, and rest of chars are alphanumeric.
-        else if first_char.is_alphabetic() && word.chars().skip(1).all(|ch| ch.is_alphanumeric())
-        {
-            tokens.push(Token::Ident(word.into()));
-        } else if word == "(" {
-            tokens.push(Token::LParen);
-        } else if word == ")" {
-            tokens.push(Token::RParen);
-        } else {
-            unimplemented!()
+impl Tokenizer {
+    fn new(input: &str) -> Self {
+        Self {
+            source: ensure_each_token_has_whitespace_surrounding(input),
         }
     }
-    tokens
+
+    fn tokenize(&self) -> Vec<Token<'_>> {
+        let mut tokens = Vec::new();
+
+        for word in self.source.split_whitespace() {
+            // Safe because split_whitespace will not produce empty strings.
+            let first_char = word.chars().nth(0).unwrap();
+
+            if word.chars().all(|ch| ch.is_alphabetic()) {
+                tokens.push(Token::Ident(word));
+            }
+            // Is a positive or negative number.
+            else if (first_char == '-' || first_char == '+' || first_char.is_ascii_digit())
+                && word.chars().skip(1).all(|ch| ch.is_ascii_digit())
+            {
+                tokens.push(Token::Int64(word.parse().unwrap()));
+            }
+            // First char is alphabetic, and rest of chars are alphanumeric.
+            else if first_char.is_alphabetic()
+                && word.chars().skip(1).all(|ch| ch.is_alphanumeric())
+            {
+                tokens.push(Token::Ident(word));
+            } else if word == "(" {
+                tokens.push(Token::LParen);
+            } else if word == ")" {
+                tokens.push(Token::RParen);
+            } else {
+                unimplemented!()
+            }
+        }
+        tokens
+    }
 }
 
 /// In our lisp, the only tokens that are allowed to not have whitespace between
@@ -56,8 +87,8 @@ fn ensure_each_token_has_whitespace_surrounding(source: &str) -> String {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Token {
-    Ident(String),
+enum Token<'a> {
+    Ident(&'a str),
     Int64(i64),
     LParen,
     RParen,
@@ -79,7 +110,8 @@ mod tests {
     fn test_tokenization() {
         use Token::*;
         let input = "+984 -156()))((adam app11e";
-        let tokens = tokenize(input);
+        let tokenizer = Tokenizer::new(input);
+        let tokens = tokenizer.tokenize();
         let expected = vec![
             Int64(984),
             Int64(-156),
