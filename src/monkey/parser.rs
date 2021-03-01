@@ -170,7 +170,6 @@ mod tests {
 
     #[test]
     fn test_let_statement() {
-        use Expression::IntegerLiteral as IntLit;
         let input = "
 let x = 5;
 let y = 10;
@@ -184,6 +183,7 @@ let foobar = 838383;
         assert_eq!(program.statements.len(), 3);
 
         let names = vec!["x", "y", "foobar"];
+        use Expression::IntegerLiteral as IntLit;
         let values = vec![IntLit(5), IntLit(10), IntLit(838383)];
 
         for (i, statement) in program.statements.into_iter().enumerate() {
@@ -223,4 +223,18 @@ let foobar = 838383;
             &Statement::Expression(Expression::IntegerLiteral(5))
         ))
     }
+
+    // #[test]
+    // fn test_prefix_expressions() {
+    //     let input = "5;";
+    //     let mut parser = Parser::new(input);
+
+    //     let pgm = parser.parse_program();
+    //     let statement = &pgm.statements[0];
+
+    //     assert!(matches!(
+    //         statement,
+    //         &Statement::Expression(Expression::IntegerLiteral(5))
+    //     ))
+    // }
 }
