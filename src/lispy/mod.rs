@@ -3,7 +3,9 @@ mod calculator;
 use std::str::pattern::Pattern;
 
 pub fn main() {
-    println!("{:?}", '+'.is_contained_in("+-123"));
+    let source = "(+ 3 (why 9 ten) yes)";
+    let parser = Parser::new(source);
+    println!("{:?}", parser.parse());
 }
 
 struct Parser {
@@ -19,7 +21,7 @@ impl Parser {
 
     fn parse(&self) -> Vec<Expr<'_>> {
         let mut expressions = Vec::new();
-        let mut expr_stack = ExprStack::new();
+        let mut expr_stack = Vec::new();
 
         for token in self.tokenizer.tokenize() {
             use AST::*;
@@ -41,32 +43,25 @@ impl Parser {
     }
 }
 
-struct ExprStack<'a>(Vec<Expr<'a>>);
-impl<'a> ExprStack<'a> {
-    fn new() -> Self {
-        Self(Vec::new())
-    }
+trait PushInside<'a> {
+    fn push_inside(&mut self, ast: AST<'a>);
+}
 
-    fn pop(&mut self) -> Option<Expr<'a>> {
-        self.0.pop()
-    }
-
-    fn push(&mut self, expr: Expr<'a>) {
-        self.0.push(expr);
-    }
-
+impl<'a> PushInside<'a> for Vec<Expr<'a>> {
     /// Pushes inside of the expression at the top of the stack.
     fn push_inside(&mut self, ast: AST<'a>) {
-        self.0.last_mut().unwrap().0.push(ast);
+        self.last_mut().unwrap().0.push(ast);
     }
 }
 
+#[derive(Debug)]
 enum AST<'a> {
     Ident(&'a str),
     Int64(i64),
 }
 
 /// An expression is just parenthesis surrounding AST nodes: (thing 33 "yes").
+#[derive(Debug)]
 struct Expr<'a>(Vec<AST<'a>>);
 
 /// Extracts an expression from the current point, expecting the token slice to
@@ -230,5 +225,15 @@ mod tests {
         let tokenizer = Tokenizer::new("(+ (- 3 4) 5 6)");
         let tokens = tokenizer.tokenize();
         assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
+    }
+
+    #[test]
+    fn test_parsing() {
+        use AST::*;
+        let source = "(+ 3 (why 9 ten) yes)";
+        let parser = Parser::new(source);
+        // let expected = vec![Expr(vec![Ident("why"), Int64(9), Ident("ten")]), Expr()];
+
+        // parser.parse()
     }
 }
