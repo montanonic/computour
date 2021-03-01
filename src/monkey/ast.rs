@@ -13,14 +13,26 @@ impl Program<'_> {
     }
 }
 
-pub enum Statement<'token> {
-    Let(LetStatement<'token>),
+pub enum Statement<'input> {
+    Let {
+        name: &'input str,
+        value: Expression<'input>,
+    },
+    Return(Expression<'input>),
+    Expression(Expression<'input>),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Expression;
-
-pub struct LetStatement<'token> {
-    pub name: &'token str,
-    pub value: Expression,
+pub enum Expression<'input> {
+    Identifier(&'input str),
+    IntegerLiteral(i64),
 }
+
+// pub struct LetStatement<'input> {
+//     pub name: &'input str,
+//     pub value: Expression,
+// }
+
+// pub struct ReturnStatement<'input> {
+//     pub value: Expression,
+// }
