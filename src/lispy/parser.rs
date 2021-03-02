@@ -174,7 +174,21 @@ impl Tokenizer {
     fn tokenize(&self) -> Vec<Token<'_>> {
         let mut tokens = Vec::new();
 
+        let mut skipping_comment = false;
         for word in self.source.split_whitespace() {
+            // Flag comments for skipping.
+            if word == "//" {
+                skipping_comment = true;
+            } else if word == r"\\" {
+                skipping_comment = false;
+                continue; // Skip this non-token.
+            }
+
+            // Skip over commas and comments
+            if word == "," || skipping_comment {
+                continue;
+            }
+
             // Safe because split_whitespace will not produce empty strings.
             let first_char = word.chars().nth(0).unwrap();
 
@@ -196,14 +210,14 @@ impl Tokenizer {
             } else if is_valid_identifier(first_char, word) {
                 tokens.push(Token::Word(word));
             } else {
-                unimplemented!()
+                panic!("failed to tokenize '{}'", word);
             }
         }
         tokens
     }
 }
 
-const OPERATOR_CHARS: &'static str = "'+-/*!@#$%&<>?=";
+const OPERATOR_CHARS: &'static str = "'+-/*!@#$%&<>?=:;|_";
 
 fn is_valid_identifier(first_char: char, word: &str) -> bool {
     (first_char.is_alphanumeric() || first_char.is_contained_in(OPERATOR_CHARS))
@@ -218,9 +232,12 @@ fn is_valid_identifier(first_char: char, word: &str) -> bool {
 /// parsing more challenging, so we insert whitespace so that we can easily
 /// split out *all* possible tokens.
 fn ensure_each_token_has_whitespace_surrounding(source: &str) -> String {
-    let source = source.replace('(', " ( ");
-    let source = source.replace(')', " ) ");
     source
+        .replace('(', " ( ")
+        .replace(')', " ) ")
+        .replace(',', " , ")
+        .replace("//", " // ")
+        .replace(r"\\", r" \\ ")
 }
 
 #[derive(Debug, PartialEq, Eq)]
