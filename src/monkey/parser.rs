@@ -9,7 +9,7 @@ use crate::monkey::{
 
 use super::lexer;
 
-struct Parser<'input> {
+pub struct Parser<'input> {
     lexer: Lexer<'input>,
     curr_token: Option<Token<'input>>,
     peek_token: Option<Token<'input>>,
@@ -60,9 +60,7 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_expression_statement(&mut self) -> Option<Statement<'input>> {
-        let expression = self
-            .parse_expression(Precedence::Lowest)
-            .expect("Expected expression to parse");
+        let expression = self.parse_expression(Precedence::Lowest)?;
 
         // Check for optional semicolon following the expression, advancing it
         // to the current token if so.
@@ -76,8 +74,25 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Expression<'input>> {
-        self.curr_token.and_then(|token| match precedence {
-            _ => self.parse_prefix_token(token),
+        self.curr_token.and_then(|token| {
+            let mut left_exp = self.parse_prefix_token(token)?;
+
+            while self.peek_token != Some(Token::Semicolon)
+                && Some(precedence) < self.peek_precedence()
+            {
+                use Token::*;
+                const INFIX_TOKENS: &'static [Token<'static>] =
+                    &[Plus, Minus, Slash, Asterisk, EQ, NotEQ, LT, GT];
+                let peek_token = self.peek_token.unwrap();
+
+                if INFIX_TOKENS.contains(&peek_token) {
+                    self.next_token();
+                    left_exp = self.parse_infix_token(peek_token, left_exp)?;
+                } else {
+                    return Some(left_exp);
+                }
+            }
+            Some(left_exp)
         })
     }
 
@@ -142,7 +157,6 @@ impl<'input> Parser<'input> {
 
     fn parse_prefix_expression(&mut self, operator: Token<'input>) -> Option<Expression<'input>> {
         self.next_token();
-
         self.parse_expression(Precedence::Prefix)
             .map(|right| Expression::Prefix {
                 operator,
@@ -152,19 +166,34 @@ impl<'input> Parser<'input> {
 
     /// Parses the given (infix) token into an expression.
     fn parse_infix_token(
-        token: Token<'input>,
-        left_side: Expression<'input>,
+        &mut self,
+        operator: Token<'input>,
+        left: Expression<'input>,
     ) -> Option<Expression<'input>> {
-        match token {
-            _ => None,
-        }
+        self.curr_precedence().and_then(|precedence| {
+            self.next_token();
+            self.parse_expression(precedence)
+                .map(|right| Expression::Infix {
+                    left: Box::new(left),
+                    operator,
+                    right: Box::new(right),
+                })
+        })
+    }
+
+    fn peek_precedence(&self) -> Option<Precedence> {
+        self.peek_token.map(|token| token.get_precedence())
+    }
+
+    fn curr_precedence(&self) -> Option<Precedence> {
+        self.curr_token.map(|token| token.get_precedence())
     }
 }
 
 /// The order defined here is implicitly the order of precedence. Adjusting
 /// these lines adjusts precedence.
-#[derive(Debug, PartialEq, PartialOrd)]
-enum Precedence {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum Precedence {
     Lowest,
     Equals,            // ==
     LessOrGreaterThan, // > or <
@@ -258,5 +287,34 @@ let foobar = 838383;
                 right: box Expression::IntegerLiteral(15),
             })
         ));
+    }
+
+    #[test]
+    fn test_operator_precedence() {
+        let input_expected = vec![
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+
+        let input = input_expected
+            .iter()
+            .map(|(x, _)| *x)
+            .collect::<Vec<_>>()
+            .join(";\n");
+        let mut parser = Parser::new(&input);
+        let statements = parser.parse_program().statements;
+        for (i, statement) in statements.into_iter().enumerate() {
+            assert_eq!(
+                &format!("{}", statement),
+                &(input_expected[i].1.to_string() + ";")
+            );
+        }
     }
 }

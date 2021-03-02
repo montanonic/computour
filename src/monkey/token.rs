@@ -1,6 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 use strum_macros::{AsRefStr, Display, EnumString, IntoStaticStr};
 
+use crate::monkey::parser;
 use Token::*;
 // static KEYWORDS: HashMap<&'static str, Token<'static>> = vec![("fn", Token::Function), ("let", Let)].into_iter().collect();
 
@@ -78,5 +79,21 @@ impl<'str> Token<'str> {
                 }
             },
         )
+    }
+
+    /// Gets a token's precedence. Defaults to Lowest precedence when called on
+    /// any token that this is not implemented for.
+    pub fn get_precedence(&self) -> parser::Precedence {
+        match self {
+            EQ => parser::Precedence::Equals,
+            NotEQ => parser::Precedence::Equals,
+            LT => parser::Precedence::LessOrGreaterThan,
+            GT => parser::Precedence::LessOrGreaterThan,
+            Plus => parser::Precedence::Sum,
+            Minus => parser::Precedence::Sum,
+            Slash => parser::Precedence::Product,
+            Asterisk => parser::Precedence::Product,
+            _ => parser::Precedence::Lowest,
+        }
     }
 }
