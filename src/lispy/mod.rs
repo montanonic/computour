@@ -1,6 +1,7 @@
 mod calculator;
+mod understanding_lifetimes;
 
-use std::str::pattern::Pattern;
+use std::{mem, str::pattern::Pattern};
 
 pub fn main() {
     let source = "(+ 3 (why 9 ten) yes)";
@@ -19,23 +20,31 @@ impl Parser {
         }
     }
 
-    fn parse(&self) -> Vec<Expr<'_>> {
+    fn parse(&self) -> Vec<Node<'_>> {
         let mut expressions = Vec::new();
         let mut expr_stack = Vec::new();
+        let mut curr_expr = None;
 
         for token in self.tokenizer.tokenize() {
-            use AST::*;
+            use Node::*;
             match token {
                 Token::LParen => {
-                    expr_stack.push(Expr(Vec::new()));
+                    if curr_expr.is_some() {
+                        expr_stack.push(curr_expr.replace(Expression::new()).unwrap());
+                    } else {
+                        curr_expr = Some(Expression::new());
+                    }
                 }
                 Token::RParen => match expr_stack.pop() {
-                    Some(expr) => expressions.push(expr),
-                    None => panic!("got RParen token without matching LParen"),
+                    Some(expr) => expressions.push(Node::Expr(expr)),
+                    None => panic!(
+                        "got RParen token without matching LParen, \
+                    here's the curr_expression: {:#?}, expr_stack: {:#?}, and expressions: {:#?}",
+                        curr_expr, expr_stack, expressions
+                    ),
                 },
-                Token::Word(val) => expr_stack.push_inside(Ident(val)),
-                Token::Int64(val) => expr_stack.push_inside(Int64(val)),
-                _ => unimplemented!(),
+                Token::Word(val) => curr_expr.as_mut().unwrap().push(Ident(val)),
+                Token::Int64(val) => curr_expr.as_mut().unwrap().push(Int64(val)),
             }
         }
 
@@ -44,25 +53,50 @@ impl Parser {
 }
 
 trait PushInside<'a> {
-    fn push_inside(&mut self, ast: AST<'a>);
+    fn push_inside(&mut self, node: Node<'a>);
 }
 
-impl<'a> PushInside<'a> for Vec<Expr<'a>> {
+impl<'a> PushInside<'a> for Vec<Expression<'a>> {
     /// Pushes inside of the expression at the top of the stack.
-    fn push_inside(&mut self, ast: AST<'a>) {
-        self.last_mut().unwrap().0.push(ast);
+    fn push_inside(&mut self, node: Node<'a>) {
+        self.last_mut().unwrap().push(node);
     }
 }
 
-#[derive(Debug)]
-enum AST<'a> {
+#[derive(Debug, PartialEq)]
+enum Node<'a> {
     Ident(&'a str),
     Int64(i64),
+    Expr(Expression<'a>),
+}
+
+impl<'a> Node<'a> {
+    /// Builds an Expr Node.
+    fn expr(vec: Vec<Node<'a>>) -> Node<'a> {
+        Node::Expr(Expression(vec))
+    }
 }
 
 /// An expression is just parenthesis surrounding AST nodes: (thing 33 "yes").
-#[derive(Debug)]
-struct Expr<'a>(Vec<AST<'a>>);
+/// Expressions are themselves AST nodes, so they may be nested.
+#[derive(Debug, PartialEq)]
+struct Expression<'a>(Vec<Node<'a>>);
+
+impl<'a> Expression<'a> {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn push(&mut self, node: Node<'a>) {
+        self.0.push(node);
+    }
+}
+
+impl Default for Expression<'_> {
+    fn default() -> Self {
+        Expression::new()
+    }
+}
 
 /// Extracts an expression from the current point, expecting the token slice to
 /// begin with an LParen.
@@ -229,11 +263,15 @@ mod tests {
 
     #[test]
     fn test_parsing() {
-        use AST::*;
+        use Node::*;
         let source = "(+ 3 (why 9 ten) yes)";
         let parser = Parser::new(source);
-        // let expected = vec![Expr(vec![Ident("why"), Int64(9), Ident("ten")]), Expr()];
+        let expected = vec![
+            Ident("+"),
+            Node::expr(vec![Ident("why"), Int64(9), Ident("ten")]),
+            Ident("yes"),
+        ];
 
-        // parser.parse()
+        assert_eq!(parser.parse(), expected);
     }
 }
