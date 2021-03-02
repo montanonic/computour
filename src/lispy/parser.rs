@@ -141,32 +141,6 @@ impl Default for Expression<'_> {
     }
 }
 
-/// Extracts an expression from the current point, expecting the token slice to
-/// begin with an LParen.
-fn extract_expression<'a>(tokens: &'a [Token<'a>]) -> Option<&'a [Token<'a>]> {
-    assert_eq!(tokens.get(0), Some(&Token::LParen));
-
-    let mut parens_bal = 1;
-    let mut end_index = 1;
-    for token in tokens.iter().skip(1) {
-        if parens_bal == 0 {
-            break;
-        }
-        match token {
-            Token::LParen => parens_bal += 1,
-            Token::RParen => parens_bal -= 1,
-            _ => {}
-        }
-        end_index += 1;
-    }
-
-    if parens_bal == 0 {
-        Some(&tokens[0..end_index])
-    } else {
-        None
-    }
-}
-
 /// The reason I use a struct instead of just a function for tokenization is
 /// because we want to ensure that our input data is ran through
 /// `ensure_each_token_has_whitespace_surrounding` before tokenizing, but
@@ -229,7 +203,7 @@ impl Tokenizer {
     }
 }
 
-const OPERATOR_CHARS: &'static str = "'+-/*!@#$%&";
+const OPERATOR_CHARS: &'static str = "'+-/*!@#$%&<>?=";
 
 fn is_valid_identifier(first_char: char, word: &str) -> bool {
     (first_char.is_alphanumeric() || first_char.is_contained_in(OPERATOR_CHARS))
@@ -282,24 +256,6 @@ mod tests {
         for (i, token) in expected.into_iter().enumerate() {
             assert_eq!(token, tokens[i]);
         }
-    }
-
-    #[test]
-    fn test_extract_expression() {
-        use Token::*;
-        let tokens = vec![LParen, RParen];
-        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
-
-        let tokens = vec![LParen, LParen, RParen];
-        assert!(extract_expression(&tokens).is_none());
-        let tokens = vec![LParen, LParen, RParen, Int64(1234), RParen];
-        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
-        let tokens = vec![LParen, RParen, LParen];
-        assert_eq!(extract_expression(&tokens).unwrap(), &tokens[0..2]);
-
-        let tokenizer = Tokenizer::new("(+ (- 3 4) 5 6)");
-        let tokens = tokenizer.tokenize();
-        assert_eq!(extract_expression(&tokens).unwrap(), &tokens);
     }
 
     #[test]
