@@ -1,5 +1,8 @@
-use std::str::pattern::Pattern;
-
+use std::{
+    fmt::{self, Display},
+    rc::Rc,
+    str::pattern::Pattern,
+};
 pub struct Parser {
     tokenizer: Tokenizer,
 }
@@ -39,6 +42,8 @@ impl Parser {
                 },
                 Token::Word(val) => expr_stack.push_inside(Ident(val)),
                 Token::Int64(val) => expr_stack.push_inside(Int64(val)),
+                token if token.is_keyword() => expr_stack.push_inside(Builtin(token)),
+                _ => unimplemented!(),
             }
         }
 
@@ -97,17 +102,75 @@ impl<'a> Program<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl Display for Program<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for expr in self.expressions() {
+            writeln!(f, "{}", Node::Expr(expr.clone()))?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Node<'a> {
     Ident(&'a str),
     Int64(i64),
+    Builtin(Token<'a>),
     Expr(Expression<'a>),
+}
+
+impl Display for Node<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Node::*;
+        match self {
+            Ident(val) => write!(f, "{}", val),
+            Int64(val) => write!(f, "{}", val),
+            Builtin(token) => write!(f, "{}", token),
+            Expr(expression) => {
+                let nodes = expression.nodes();
+                let len = nodes.len();
+
+                write!(f, "(")?;
+                for (i, node) in nodes.iter().enumerate() {
+                    let last = i + 1 == len;
+
+                    if last {
+                        write!(f, "{})", node)?;
+                    } else {
+                        write!(f, "{} ", node)?;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 impl<'a> Node<'a> {
     /// Builds an Expr Node.
     fn expr(vec: Vec<Node<'a>>) -> Node<'a> {
         Node::Expr(Expression(vec))
+    }
+
+    pub fn get_i64(&self) -> i64 {
+        match self {
+            Node::Int64(val) => *val,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_expr(&self) -> Expression<'a> {
+        match self {
+            Node::Expr(expression) => expression.clone(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_ident(&self) -> &'a str {
+        match self {
+            Node::Ident(ident) => *ident,
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -118,7 +181,7 @@ impl<'a> Node<'a> {
 /// We keep this as a separate type so that we may clearly delineate it from
 /// other Nodes, as our lispy programs do not consider any other AST node to be
 /// valid at the top-level.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Expression<'a>(Vec<Node<'a>>);
 
 impl<'a> Expression<'a> {
@@ -196,6 +259,16 @@ impl Tokenizer {
                 tokens.push(Token::LParen);
             } else if word == ")" {
                 tokens.push(Token::RParen);
+            } else if word.to_lowercase() == "print" {
+                tokens.push(Token::Print);
+            } else if word.to_lowercase() == "cons" {
+                tokens.push(Token::Cons)
+            } else if word.to_lowercase() == "add" || word == "+" {
+                tokens.push(Token::Add)
+            } else if word.to_lowercase() == "def" {
+                tokens.push(Token::Def)
+            } else if word.to_lowercase() == "defun" {
+                tokens.push(Token::Defun)
             }
             // Is a positive number.
             else if word.chars().all(|ch| ch.is_ascii_digit()) {
@@ -240,12 +313,48 @@ fn ensure_each_token_has_whitespace_surrounding(source: &str) -> String {
         .replace(r"\\", r" \\ ")
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum Token<'a> {
+use strum_macros::{AsRefStr, EnumString};
+
+#[derive(Debug, PartialEq, Eq, Clone, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+pub enum Token<'a> {
     Word(&'a str),
     Int64(i64),
+    #[strum(serialize = "(")]
     LParen,
+    #[strum(serialize = ")")]
     RParen,
+
+    // Keywords:
+    Add,
+    Print,
+    Cons,
+    Def,
+    Defun,
+}
+
+impl Display for Token<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Token::*;
+        match self {
+            Word(val) => write!(f, "{}", val),
+            Int64(val) => write!(f, "{}", val),
+            rest => write!(f, "{}", rest.as_ref()),
+        }
+    }
+}
+
+impl<'a> Token<'a> {
+    const KEYWORDS: &'a [Token<'a>] = &[
+        Token::Add,
+        Token::Print,
+        Token::Cons,
+        Token::Def,
+        Token::Defun,
+    ];
+    fn is_keyword(&self) -> bool {
+        Self::KEYWORDS.contains(self)
+    }
 }
 
 #[cfg(test)]

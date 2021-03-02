@@ -15,10 +15,17 @@ and will parse this data into a map.
 (mapping, yes: god, is: here, and: you?)
 ";
 
-    let source = r"";
+    let source = r"
+(def x (+ 3 4))
+(print x)
+    ";
 
     println!("{}", source);
 
     let parser = Parser::new(source);
-    println!("{:#?}", parser.parse());
+    let program = parser.parse();
+    println!("{:#?}", program);
+    println!("{}", program);
+
+    // interpreter::Interpreter::new(&program).interpret();
 }
