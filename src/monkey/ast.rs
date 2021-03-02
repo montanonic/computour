@@ -13,6 +13,7 @@ impl Program<'_> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Statement<'input> {
     Let {
         name: &'input str,
@@ -22,10 +23,14 @@ pub enum Statement<'input> {
     Expression(Expression<'input>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Expression<'input> {
     Identifier(&'input str),
     IntegerLiteral(i64),
+    Prefix {
+        operator: Token<'input>,
+        right: Box<Expression<'input>>,
+    },
 }
 
 // pub struct LetStatement<'input> {

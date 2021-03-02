@@ -3,7 +3,8 @@
     or_patterns,
     bindings_after_at,
     type_alias_impl_trait,
-    pattern
+    pattern,
+    box_patterns
 )]
 #![warn(rust_2018_idioms)]
 #![allow(unused)]

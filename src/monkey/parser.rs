@@ -76,9 +76,8 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Option<Expression<'input>> {
-        self.curr_token.and_then(|token| {
-            let prefix = Self::parse_prefix_token(token);
-            prefix
+        self.curr_token.and_then(|token| match precedence {
+            _ => self.parse_prefix_token(token),
         })
     }
 
@@ -131,12 +130,24 @@ impl<'input> Parser<'input> {
     }
 
     /// Parses the given (prefix) token into an expression.
-    fn parse_prefix_token(token: Token<'input>) -> Option<Expression<'input>> {
+    fn parse_prefix_token(&mut self, token: Token<'input>) -> Option<Expression<'input>> {
         match token {
             Token::Ident(val) => Some(Expression::Identifier(val)),
             Token::Int(val) => Some(Expression::IntegerLiteral(val)),
+            operator @ Token::Bang => self.parse_prefix_expression(operator),
+            operator @ Token::Minus => self.parse_prefix_expression(operator),
             _ => None,
         }
+    }
+
+    fn parse_prefix_expression(&mut self, operator: Token<'input>) -> Option<Expression<'input>> {
+        self.next_token();
+
+        self.parse_expression(Precedence::Prefix)
+            .map(|right| Expression::Prefix {
+                operator,
+                right: Box::new(right),
+            })
     }
 
     /// Parses the given (infix) token into an expression.
@@ -224,17 +235,28 @@ let foobar = 838383;
         ))
     }
 
-    // #[test]
-    // fn test_prefix_expressions() {
-    //     let input = "5;";
-    //     let mut parser = Parser::new(input);
+    #[test]
+    fn test_prefix_expressions() {
+        let input = "!5; -15;";
+        let mut parser = Parser::new(input);
 
-    //     let pgm = parser.parse_program();
-    //     let statement = &pgm.statements[0];
+        let pgm = parser.parse_program();
+        let statement1 = &pgm.statements[0];
+        let statement2 = &pgm.statements[1];
 
-    //     assert!(matches!(
-    //         statement,
-    //         &Statement::Expression(Expression::IntegerLiteral(5))
-    //     ))
-    // }
+        assert!(matches!(
+            statement1,
+            &Statement::Expression(Expression::Prefix {
+                operator: Token::Bang,
+                right: box Expression::IntegerLiteral(5),
+            })
+        ));
+        assert!(matches!(
+            statement2,
+            &Statement::Expression(Expression::Prefix {
+                operator: Token::Minus,
+                right: box Expression::IntegerLiteral(15),
+            })
+        ));
+    }
 }

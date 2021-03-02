@@ -4,7 +4,7 @@ use strum_macros::{AsRefStr, Display, EnumString, IntoStaticStr};
 use Token::*;
 // static KEYWORDS: HashMap<&'static str, Token<'static>> = vec![("fn", Token::Function), ("let", Let)].into_iter().collect();
 
-#[derive(Debug, PartialEq, Display, EnumString, AsRefStr, IntoStaticStr, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Display, EnumString, AsRefStr, IntoStaticStr, Clone, Copy)]
 #[strum(serialize_all = "lowercase")]
 pub enum Token<'str> {
     Illegal,
