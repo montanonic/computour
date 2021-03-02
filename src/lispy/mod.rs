@@ -20,35 +20,38 @@ impl Parser {
         }
     }
 
-    fn parse(&self) -> Vec<Node<'_>> {
+    fn parse(&self) -> Program<'_> {
         let mut expressions = Vec::new();
         let mut expr_stack = Vec::new();
-        let mut curr_expr = None;
 
         for token in self.tokenizer.tokenize() {
             use Node::*;
             match token {
-                Token::LParen => {
-                    if curr_expr.is_some() {
-                        expr_stack.push(curr_expr.replace(Expression::new()).unwrap());
-                    } else {
-                        curr_expr = Some(Expression::new());
-                    }
-                }
+                Token::LParen => expr_stack.push(Expression::new()),
+                // Pop the current working expression back into the previous
+                // one, or move it to the completed expressions vector if there
+                // is no previous expression in the stack (which is to say: the
+                // current expression is top-level).
                 Token::RParen => match expr_stack.pop() {
-                    Some(expr) => expressions.push(Node::Expr(expr)),
+                    Some(expression) => {
+                        if expr_stack.is_empty() {
+                            expressions.push(expression)
+                        } else {
+                            expr_stack.push_inside(Node::Expr(expression))
+                        }
+                    }
                     None => panic!(
                         "got RParen token without matching LParen, \
-                    here's the curr_expression: {:#?}, expr_stack: {:#?}, and expressions: {:#?}",
-                        curr_expr, expr_stack, expressions
+                    here's the expr_stack: {:#?}, and expressions: {:#?}",
+                        expr_stack, expressions
                     ),
                 },
-                Token::Word(val) => curr_expr.as_mut().unwrap().push(Ident(val)),
-                Token::Int64(val) => curr_expr.as_mut().unwrap().push(Int64(val)),
+                Token::Word(val) => expr_stack.push_inside(Ident(val)),
+                Token::Int64(val) => expr_stack.push_inside(Int64(val)),
             }
         }
 
-        expressions
+        Program::new(expressions)
     }
 }
 
@@ -63,7 +66,43 @@ impl<'a> PushInside<'a> for Vec<Expression<'a>> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+/// A representation of our Lispy program, which consists of top-level
+/// expressions.
+#[derive(Debug, PartialEq, Eq)]
+struct Program<'a>(Vec<Expression<'a>>);
+impl<'a> Program<'a> {
+    fn new(expressions: Vec<Expression<'a>>) -> Self {
+        Self(expressions)
+    }
+
+    /// Utility for turning a single expression node into a program. Useful for
+    /// testing.
+    fn from_node(node: Node<'a>) -> Self {
+        Self::new(if let Node::Expr(expression) = node {
+            vec![expression]
+        } else {
+            panic!("expected an Expr Node")
+        })
+    }
+
+    /// Expects all top-level Nodes to be Exprs.
+    fn from_nodes(nodes: Vec<Node<'a>>) -> Self {
+        Self::new(
+            nodes
+                .into_iter()
+                .map(|node| {
+                    if let Node::Expr(expression) = node {
+                        expression
+                    } else {
+                        panic!("expected all top-level Nodes to be Expr Nodes")
+                    }
+                })
+                .collect(),
+        )
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 enum Node<'a> {
     Ident(&'a str),
     Int64(i64),
@@ -78,8 +117,13 @@ impl<'a> Node<'a> {
 }
 
 /// An expression is just parenthesis surrounding AST nodes: (thing 33 "yes").
-/// Expressions are themselves AST nodes, so they may be nested.
-#[derive(Debug, PartialEq)]
+/// Expressions are themselves AST nodes, so they may be nested (inside of the
+/// Node::Expr).
+///
+/// We keep this as a separate type so that we may clearly delineate it from
+/// other Nodes, as our lispy programs do not consider any other AST node to be
+/// valid at the top-level.
+#[derive(Debug, PartialEq, Eq)]
 struct Expression<'a>(Vec<Node<'a>>);
 
 impl<'a> Expression<'a> {
@@ -160,8 +204,6 @@ impl Tokenizer {
         for word in self.source.split_whitespace() {
             // Safe because split_whitespace will not produce empty strings.
             let first_char = word.chars().nth(0).unwrap();
-
-            dbg!(word);
 
             if word == "(" {
                 tokens.push(Token::LParen);
@@ -266,12 +308,13 @@ mod tests {
         use Node::*;
         let source = "(+ 3 (why 9 ten) yes)";
         let parser = Parser::new(source);
-        let expected = vec![
+        let expected = Node::expr(vec![
             Ident("+"),
+            Int64(3),
             Node::expr(vec![Ident("why"), Int64(9), Ident("ten")]),
             Ident("yes"),
-        ];
+        ]);
 
-        assert_eq!(parser.parse(), expected);
+        assert_eq!(parser.parse(), Program::from_node(expected));
     }
 }
