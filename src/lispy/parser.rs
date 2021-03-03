@@ -1,7 +1,7 @@
 use std::{
     fmt::{self, Display},
     rc::Rc,
-    str::pattern::Pattern,
+    str::{pattern::Pattern, FromStr},
 };
 pub struct Parser {
     tokenizer: Tokenizer,
@@ -254,20 +254,21 @@ impl Tokenizer {
 
             // Safe because split_whitespace will not produce empty strings.
             let first_char = word.chars().nth(0).unwrap();
+            let word_lower = word.to_lowercase();
 
             if word == "(" {
                 tokens.push(Token::LParen);
             } else if word == ")" {
                 tokens.push(Token::RParen);
-            } else if word.to_lowercase() == "print" {
+            } else if word_lower == "print" {
                 tokens.push(Token::Print);
-            } else if word.to_lowercase() == "cons" {
+            } else if word_lower == "cons" {
                 tokens.push(Token::Cons)
-            } else if word.to_lowercase() == "add" || word == "+" {
+            } else if word_lower == "add" || word == "+" {
                 tokens.push(Token::Add)
-            } else if word.to_lowercase() == "def" {
+            } else if word_lower == "def" {
                 tokens.push(Token::Def)
-            } else if word.to_lowercase() == "defun" {
+            } else if word_lower == "defun" {
                 tokens.push(Token::Defun)
             }
             // Is a positive number.
@@ -315,7 +316,7 @@ fn ensure_each_token_has_whitespace_surrounding(source: &str) -> String {
 
 use strum_macros::{AsRefStr, EnumString};
 
-#[derive(Debug, PartialEq, Eq, Clone, AsRefStr)]
+#[derive(Debug, PartialEq, Eq, Clone, EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 pub enum Token<'a> {
     Word(&'a str),

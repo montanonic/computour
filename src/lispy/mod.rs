@@ -27,5 +27,5 @@ and will parse this data into a map.
     println!("{:#?}", program);
     println!("{}", program);
 
-    // interpreter::Interpreter::new(&program).interpret();
+    interpreter::Interpreter::new(&program).interpret();
 }
