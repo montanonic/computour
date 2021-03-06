@@ -1,0 +1,56 @@
+; Need to impl: quote
+(define (name? val) (is 'name val))
+(define (number? val) (is 'number val))
+
+(define (third list) (elt list 2))
+
+;; an lmap is just a list of pairs, which can be treated like a dictionary, but it *can* contain duplicate keys, and of course it always has a defined order.
+(define (lmap/new) ())
+
+;; assigns the element to the given key in the list-map; does not perform any deduplication, so if the key is a duplicate, both entries will exist.
+(define (lmap/add lmap key elem)
+    (append lmap (list key elem)))
+
+(define (lmap/lookup lmap key) 
+    (if (eq key (first (first lmap)))
+        (second (first lmap)) 
+        (map/lookup (tail lmap) key)))
+
+(define (eval exp env)
+    (cond
+        ; if we have a symbol like `x`, replace it with its value in the environment
+        ((name? exp) (lmap/lookup env key))
+        ; leave numbers as-is
+        ((number? exp) exp)
+        ; otherwise we have a list expression
+        (else
+            ; let's get the name of the function
+            (let ((name (first exp)))
+                (cond
+                    ((= name 'println) (println exp))
+                    ((= name 'do) 
+                        (if (null (tail (tail exp)))
+                            ; if `do` only has one more expression to evaluate, return its value
+                            (eval (tail exp) env)
+                            ; otherwise execute the next line of do, and update the environment with the effect of do
+                            ()
+                        ))
+                    ((= name 'define) (lmap/add env (eval (second exp)) (eval (third exp))))
+                    ((= name '=) (= (eval (second exp) env) (eval (third exp) env)))
+                )
+            )
+        )
+    )
+)
+
+(define (print-list list)
+    (if (null list) 
+        () 
+        (do 
+            (println "~s" (first list))
+            (print-list (tail list)))))
+
+(define x? 1)
+
+(define (main) (println "~a" (eval '(define y 3) ())))
+;(define (main) (println "~a" (is-name (first '(do something)))))

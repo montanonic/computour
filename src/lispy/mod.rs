@@ -1,11 +1,13 @@
 mod calculator;
 mod interpreter;
+mod ketos;
 mod parser;
 mod understanding_lifetimes;
 
 use parser::Parser;
 
 pub fn main() {
+    return ketos::main();
     let example_map_creation = r"
 // 
 This shows off the ease of adding syntax, with optional commas

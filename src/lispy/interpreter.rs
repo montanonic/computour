@@ -3,11 +3,16 @@ use std::collections::HashMap;
 
 use Value::*;
 
+/*
+McCarthy's lisp:
+It assumes quote, atom, eq, cons, car, cdr, and cond,
+and defines null, and, not, append, list, pair, assoc, eval, evcon and evlis.
+*/
+
 pub struct Interpreter<'a> {
     program: &'a Program<'a>,
     definitions: HashMap<&'a str, Value<'a>>,
-    /// Workspace value used to make control flow easier.
-    value: Value<'a>,
+    results: Vec<(Expression<'a>, Value<'a>)>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -15,38 +20,36 @@ impl<'a> Interpreter<'a> {
         Self {
             program,
             definitions: HashMap::new(),
-            value: Unit,
+            results: Vec::new(),
         }
     }
 
     pub fn interpret(&mut self) {
         for expression in self.program.expressions() {
-            self.interpret_nodes(expression.nodes());
+            let value = self.interpret_expression(expression.nodes());
+            self.results.push((expression.clone(), value));
         }
     }
 
-    fn interpret_nodes(&mut self, nodes: &[Node<'a>]) {
-        match nodes.first().unwrap() {
-            Node::Builtin(Token::Def) => {
-                let key = &nodes[1].get_ident();
-                self.interpret_nodes(nodes[2].get_expr().nodes());
-                self.definitions.insert(key, self.value);
-            }
-            Node::Builtin(Token::Add) => {
-                // self.interpret_nodes(&nodes[1..2]);
-                // let n1 = self.value;
-                self.value = Int64(nodes[1].get_i64() + nodes[2].get_i64());
-            }
-            Node::Builtin(Token::Print) => {
-                println!("{:?}", self.lookup(nodes[1].get_ident()));
-            }
-            Node::Int64(val) => self.value = Int64(*val),
-            Node::Expr(expression) => {
-                self.interpret_nodes(expression.nodes());
-            }
-            Node::Ident(val) => self.value = Ident(*val),
-            _ => unimplemented!(),
-        }
+    fn interpret_expression(&mut self, nodes: &[Node<'a>]) -> Value<'a> {
+        todo!()
+        // match nodes.first().unwrap() {
+        //     Node::Expr(expression) => {
+        //         self.interpret_expression(expression.nodes());
+        //     }
+        //     Node::Builtin(Token::Def) => {
+        //         let key = &nodes[1].get_ident();
+        //         let value = self.interpret_expression(nodes[2].get_expr().nodes());
+        //         self.definitions.insert(key, value);
+        //         Unit
+        //     }
+        //     Node::Builtin(Token::Add) => {
+        //         self.value = Int64(nodes[1].get_i64() + nodes[2].get_i64());
+        //     }
+        //     Node::Int64(val) => Int64(*val),
+        //     Node::Ident(val) => Ident(*val),
+        //     _ => unimplemented!(),
+        // }
     }
 
     fn lookup(&self, key: &str) -> Option<&Value<'_>> {

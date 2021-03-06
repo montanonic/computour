@@ -11,6 +11,7 @@
 
 #[macro_use]
 extern crate pest_derive;
+extern crate ketos;
 
 mod alloc;
 mod bits;
