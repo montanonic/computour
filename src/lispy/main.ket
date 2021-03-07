@@ -1,8 +1,10 @@
 ; Need to impl: quote
 (define (name? val) (is 'name val))
 (define (number? val) (is 'number val))
+(define (list? val) (is 'list val))
 
 (define (third list) (elt list 2))
+(define (fourth list) (elt list 3))
 
 ;; an lmap is just a list of pairs, which can be treated like a dictionary, but it *can* contain duplicate keys, and of course it always has a defined order.
 (define (lmap/new) ())
@@ -12,34 +14,68 @@
     (append lmap (list key elem)))
 
 (define (lmap/lookup lmap key) 
-    (if (eq key (first (first lmap)))
-        (second (first lmap)) 
-        (map/lookup (tail lmap) key)))
+    (if (null lmap)
+        ()
+        (if (= key (first (first lmap)))
+            (second (first lmap))
+            (lmap/lookup (tail lmap) key))))
+
+(define (car pair) (first pair))
+(define (cdr pair) (second pair))
+(define (cons a b) (list a b))
+(define (cadr list) (car (cdr list)))
 
 (define (eval exp env)
     (cond
         ; if we have a symbol like `x`, replace it with its value in the environment
-        ((name? exp) (lmap/lookup env key))
+        ((name? exp) (if (null (lmap/lookup env exp)) 
+                         'null 
+                         (lmap/lookup env exp)))
         ; leave numbers as-is
         ((number? exp) exp)
-        ; otherwise we have a list expression
-        (else
+        ; we treat lists as function application
+        ((list? exp)
             ; let's get the name of the function
             (let ((name (first exp)))
                 (cond
-                    ((= name 'println) (println exp))
-                    ((= name 'do) 
-                        (if (null (tail (tail exp)))
-                            ; if `do` only has one more expression to evaluate, return its value
-                            (eval (tail exp) env)
-                            ; otherwise execute the next line of do, and update the environment with the effect of do
-                            ()
-                        ))
-                    ((= name 'define) (lmap/add env (eval (second exp)) (eval (third exp))))
-                    ((= name '=) (= (eval (second exp) env) (eval (third exp) env)))
+                    ; following, everything is strictly evaluated, except for 'quote
+                    ((= name 'quote) (second exp))
+                    ((= name 'name?) (name? (eval (second exp) env)))
+                    ((= name 'number?) (number? (eval (second exp) env)))
+                    ((= name 'list?) (list? (eval (second exp) env)))
+                    ((= name '=) (eq (eval (second exp) env) (eval (third exp) env)))
+                    ((= name 'first) (first (eval (second exp) env)))
+                    ((= name 'rest) (tail (eval (second exp) env)))
+                    ; (push 5 (quote (1))) -> (5 1)
+                    ((= name 'push) (concat 
+                                        `(,(eval (second exp) env)) 
+                                        (eval (third exp) env)))
+                    ; (cond 1st 2nd ... n-1th nth)
+                    ; if the first clause evals to true, we return the second one, otherwise we repeat evaluation on the next pair of elements. errors if there aren't even terms 
+                    ((= name 'cond) (if (eval (second exp) env) 
+                                        (eval (third exp) env) 
+                                        (eval `(push cond ,(tail (tail (tail exp)))) env)))
+                    ; (label term exp)
+                    ; adds the given term to the environment, executing its expression within that environment
+                    ((= name 'label) (eval (third exp) (lmap/add env (second exp) env)))
+                    ; (lambda (args*) exp)
+                    ; binds the arguments into the environment, 
+                    ((= name 'fn) (eval (third exp) ))
+                    (else (do (println "could eval list: ~a" exp) exp))
                 )
             )
         )
+    )
+)
+
+;; evaluates a do-expression by looking at the rest of its terms and executing them one-by-one, threading the new environment throughout them, and returning the final expression
+;; actually it won't work unless eval is rewritten to return both its resulting value and the current environment, and honestly it would be too messy rght now to do that
+(define (eval-do exps env)
+    (cond
+        ; we're on the last term, return its evaluation
+        ((null (rest exps)) (eval (first exp) env))
+        ; otherwise we're not on the last term, so we want to add to the existing environment (or at least execute a side-effect), continuing evaluation onto the next term
+        (else (eval-do (rest exps) (eval (first exps) env)))
     )
 )
 
@@ -50,7 +86,9 @@
             (println "~s" (first list))
             (print-list (tail list)))))
 
-(define x? 1)
+(define (eval-test) 
+    (eval 'false '((x 3) (y 55) (ls (1 2 3))))
+)
 
-(define (main) (println "~a" (eval '(define y 3) ())))
-;(define (main) (println "~a" (is-name (first '(do something)))))
+(define (main) (println "~a" (eval-test)))
+;(define (main) (println "~a" (cadr (cons 1 (cons 2 ())))))
